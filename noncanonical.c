@@ -6,8 +6,9 @@
 #include <termios.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <stdlib.h>
-#include<signal.h>
+#include <signal.h>
 #include <unistd.h>
 
 #define BAUDRATE B38400
@@ -15,7 +16,7 @@
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
-#define BIT(n) (0x1 << n)
+#define BIT(n) (0x01 << n)
 
 #define F 0x7E
 #define A 0x03
@@ -35,8 +36,14 @@
 #define RECEIVER O_RDONLY
 #define ESCAPE 0x7d
 #define ESCAPE_XOR 0x20
-#define RR(n) ((n << 7) | 0x05)
-#define REJ(n) ((n << 7) | 0x01)
+
+#define C_RR0 0x05
+#define C_RR1 (BIT(7) | C_RR0)
+
+#define C_REJ0 0x01
+#define C_REJ1 (BIT(7) | C_REJ0)
+
+#define RS(n) (n >>7 )
 
 #define PACKAGE_LENGTH 5
 
@@ -63,11 +70,45 @@ char * getSupervisionBuf(char address, char control){
 	return buff;
 }
 
-char* byteStuffing(char * buf, int length, int stuffingLength){
+int bytesDuped(char * buf, unsigned int length){
+	int i = 1;
+	int res = 0;
+	for(i ; i < length-1; i++){
+		if(buf[i] == 0x7d){
+			res++;
+			i++;	
+		}
+	}
+	return res;
+}
+
+char* byteDesStuffing(char * buf,unsigned int length, unsigned int * rLen){
+	unsigned int len = length - bytesDuped(buf, length);
+	*rLen = len;
+	char* res = (char *)malloc(sizeof(char) *  len);
+	int i = 0;
+	int n = 0;
+	for(i; i < length; i++){
+		
+		if(buf[i] == ESCAPE){
+			
+			res[n] = buf[i+1] ^ ESCAPE_XOR; 
+			i++;
+		}else{
+			res[n] = buf[i];
+		}
+		
+		n++;
+	}
+	return res;
+}
+
+char* byteStuffing(char * buf,unsigned int length, int stuffingLength, unsigned int * rLen){
 	unsigned int lengthR = length + stuffingLength;	
 	char * res = (char*)malloc(sizeof(char)* (lengthR));
 	int offset = 0;
 	int i = 0;
+	(*rLen) = lengthR;
 	for(i; i < length; i++){
 		if(i == 0 || i == length-1){
 			res[i+offset] = buf[i];
@@ -81,10 +122,10 @@ char* byteStuffing(char * buf, int length, int stuffingLength){
 	return res;
 }
 
-char * getDataBuf(char addr, char ns, char * data,unsigned int length){
+char * getDataBuf(char addr, char ns, char * data,unsigned int length, unsigned int* rLen){
 	
 	int dataLength = (length < PACKAGE_LENGTH)? length : PACKAGE_LENGTH;
-	printf("dataLength %d\n", dataLength);
+	
 	int totalLength = 5 + dataLength + 1;	
 	int buffSize = sizeof(char) * totalLength;
 	char* buff = (char*)malloc(buffSize);
@@ -94,20 +135,24 @@ char * getDataBuf(char addr, char ns, char * data,unsigned int length){
 	buff[2] = C_INFO;
 	buff[3] = buff[1] ^ buff[2];
 	
-	unsigned char bcc2 = 0;
+	unsigned char bcc2 = data[0];
 	int stuffSize = 0;
 	int i = 0;
 	for(i; i < dataLength; i++){
 		buff[ 4 + i ] = data[i];
-		bcc2 |= data[i];
+		if(i > 0)
+			bcc2 ^= data[i];
 		if(data[i] == F || data[i] == ESCAPE)
 			stuffSize++;
 	}
-	printf("dataLength %x , %d\n", buff[0], totalLength);
-
+	
+	buff[4 + dataLength] = bcc2;
+	if(bcc2 == F || bcc2 == ESCAPE)
+		stuffSize++;
+		
 	buff[5 + dataLength] = F;
 
-	char * res = byteStuffing(buff, totalLength, stuffSize);
+	char * res = byteStuffing(buff, totalLength, stuffSize,rLen);
 	free(buff);
 	return res;
 }
@@ -164,6 +209,10 @@ char parseSupervision(int fd){
 					case F:
 						status = FLAG_RCV;
 						break;
+					case (char)C_RR0:
+					case (char)C_RR1:
+					case (char)C_REJ0:
+					case (char)C_REJ1:
 					case C_SET:
 					case C_UA:
 						status = C_RCV;
@@ -297,25 +346,83 @@ int llclose(int fd){
 	return res;
 }
 
+int llread(int fd, char* buff){
+	
+	
+	
+	
+	
+}
+
 int llwrite(int fd, char* buffer, int length){
 	
+	char *data = buffer;
+	unsigned int maxLen = length/PACKAGE_LENGTH;
+	unsigned int actualFrame = 0;
+	
+	for(int i = 0 ; i < maxLen + 1; i++){
+		
+		unsigned int len = PACKAGE_LENGTH;
+		
+		if( i == maxLen){
+			len = length % PACKAGE_LENGTH;
+			if( len == 0)
+				break;
+		}
+		unsigned int frameLength = 0;
+		char * frame =  getDataBuf(A, 0, data,len, &frameLength);
+		
+		while(1){
+		
+			setBuffer(&lastBuffer, frame, frameLength);
+			sendLastBuffer(fd, &lastBuffer);
+			alarm(3);
+			//Wait RR
+			char res = parseSupervision(fd);
+		
+			if(actualFrame != RS(res)){
+				break;
+			}else{
+				continue;
+			}
+		}
+		
+		data += PACKAGE_LENGTH;
+	}
+	
+	return 0;
+}
+
+void debugChar(char* bytes, int len){
+	printf("Elements: %d , 0x" , len);
+	int i = 0;
+	
+	for(i;i < len; i++){
+		printf(" %02x ", (unsigned char)bytes[i]);
+	}
+	printf("\n");
 }
 
 int main(int argc, char** argv)
 {
-
+	
+	char bytes []= {F, ESCAPE,0x55,0x11,0xAA};
+	unsigned int length = 0;
+	
+	debugChar(bytes, 5);
+	
+	char* res = getDataBuf(A, 0, bytes, 5, &length);
+	debugChar(res, length);
+	
+	unsigned int len = 0;
+	char* res2 = byteDesStuffing(res, length, &len);
+	debugChar(res2, len);
+	
+		
 	if(argc != 2){
 		printf("You need to specify the port number\n");
 		return -1;
 	}	
-
-	char* res  = getDataBuf(A_SENDER, 0, bytes, 1);
-	printf("0x");
-	for(int i = 0; i < sizeof(res); i++){
-		printf("%x",res[i]);
-	}
-	printf("\n");	
-
 	signal(SIGALRM, timeOut);
 	
 	fileID = llopen(atoi(argv[1]), TRANSMITTER);	
