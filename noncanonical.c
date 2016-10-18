@@ -188,7 +188,7 @@ char* getDataFromBuffer(char * buffer, unsigned int length , unsigned int * newS
 	char * data = (char *)malloc( sizeof(char) * size);
 	int i = 0;
 
-	for(int i = 0; i < size; i++){
+	for(; i < size; i++){
 		data[i] = buffer[i+4];
 
 		if(i != 0)
@@ -329,9 +329,29 @@ int initTransmitter(){
 	sendLastBuffer(fileID,&lastBuffer);
 	alarm(3);
 
-  char content = parseSupervision(fileID, NULL, NULL);
+  	do{
+		parseSupervision(fileID, NULL, NULL);
+	}while(content == C_UA);
 
-	return (content == C_UA);
+	return 0;
+}
+
+int initReceiver(){
+	do{
+		parseSupervision(fileID, NULL, NULL);
+	}while(content == C_SET);
+
+	
+
+	char * bufToSend = getSupervisionBuf(A,C_UA);
+
+	setBuffer(&lastBuffer, bufToSend , SupervisionSize);
+	sendLastBuffer(fileID,&lastBuffer);
+	alarm(3);
+
+  
+	return 0;
+	
 }
 
 int llopen(int porta, unsigned char side){
@@ -388,6 +408,8 @@ int llopen(int porta, unsigned char side){
 			close(fd);
 			exit(-1);
 		}
+	}else{
+		parseSupervision(fd);
 	}
 
 	return fd;
@@ -404,7 +426,7 @@ int llclose(int fd){
 	return res ? -1 : 1;
 }
 
-void sendResponse(int fd, char a, char c,){
+void sendResponse(int fd, char a, char c){
 		char *buf=getSupervisionBuf(a,c);
 		sendBytes(fd,  buf, 5);
 		free(buf);
@@ -413,7 +435,7 @@ void sendResponse(int fd, char a, char c,){
 }
 
 int llread(int fd, char* buff){
-	unsigned char *data;
+	char *data =NULL;
 	unsigned int length;
 	unsigned char c = parseSupervision(fd,data,&length);
 
@@ -424,7 +446,7 @@ int llread(int fd, char* buff){
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
-			sendResponse(fd,A,C_REJ(ns))
+			sendResponse(fd,A,C_REJ(ns));
 			return -1;
 		}
 	}else{//leu bem
@@ -433,7 +455,7 @@ int llread(int fd, char* buff){
 
 			return -1;
 		}else{
-			(ns) ? ns = 0 : ns = 1;
+			ns = ns ? 0:1;
 			sendResponse(fd,A,C_RR(ns));
 			return length;
 		}
@@ -471,7 +493,7 @@ int llwrite(int fd, char* buffer, int length){
 
 
 			if(ns != RS(res)){//proxima trama
-				(ns) ? ns = 0 : ns = 1;
+				ns = ns ? 0:1;
 				break;
 			}else{//resend trama
 				continue;
@@ -494,42 +516,45 @@ void debugChar(char* bytes, int len){
 	printf("\n");
 }
 
-int main(int argc, char** argv)
-{
-
-	char bytes []= {F, ESCAPE,0x55,0x11,0xAA};
-	unsigned int length = 0;
-
-	debugChar(bytes, 5);
-
-	char* res = getDataBuf(A, 0, bytes, 5, &length);
-	debugChar(res, length);
-
-	unsigned int len = 0;
-	char* res2 = byteDesStuffing(res, length, &len);
-	debugChar(res2, len);
-
-
-	if(argc != 2){
-		printf("You need to specify the port number\n");
-		return -1;
-	}
+int startConnection(int port_number, char side){
+	
 	signal(SIGALRM, timeOut);
 
-	fileID = llopen(atoi(argv[1]), TRANSMITTER);
+	if(side == 's')
+		fileID = llopen(port_number, TRANSMITTER);
+	else if(side == 'r')
+		fileID = llopen(port_number, RECEIVER);
+	else{
+		printf("Side must be (sender) 's' or (receiver) 'r' ");
+		return 1;	
+	}
 
-
-
+	
 	printf("Sending Data : \n");
 
 
-	llwrite(fileID, bytes,5);
+	//llwrite(fileID, bytes,5);
 
 
 	if(llclose(fileID) < 0){
 		perror("Error closing fileID");
 	}
 
-    printf("\n Done!\n");
+    	printf("\n Done!\n");
+
+	return 0;
+}
+
+int main(int argc, char** argv){
+
+	if(argc != 3){
+		printf("Usage: port_number <int> side <char>\n");
+		return -1;
+	}
+
+	startConnection(atoi(argv[1]),argv[2][0]);
+
+
+	
     return 0;
 }
