@@ -329,16 +329,20 @@ int initTransmitter(){
 	sendLastBuffer(fileID,&lastBuffer);
 	alarm(3);
 
+	unsigned char content;
   	do{
-		parseSupervision(fileID, NULL, NULL);
+		content = parseSupervision(fileID, NULL, NULL);
 	}while(content == C_UA);
 
 	return 0;
 }
 
 int initReceiver(){
+	
+
+	unsigned char content;
 	do{
-		parseSupervision(fileID, NULL, NULL);
+		content = parseSupervision(fileID, NULL, NULL);
 	}while(content == C_SET);
 
 	
@@ -523,7 +527,8 @@ int startConnection(int port_number, char side){
 	
 	signal(SIGALRM, timeOut);
 	unsigned char sideMacro;
-
+	
+	
 	if(side == 's'){
 		fileID = llopen(port_number, TRANSMITTER);
 		sideMacro=TRANSMITTER;
@@ -545,7 +550,7 @@ int startConnection(int port_number, char side){
 		char *buff=NULL;		
 		
 		while(1){
-			unsigned int size=llread(fd,buff);
+			unsigned int size=llread(fileID,buff);
 			if(size == -1)
 				break;
 			debugChar(buff,size);		
