@@ -578,7 +578,7 @@ int startConnection(int port_number, char side){
 	}
 
 	if(llclose(fileID) < 0){
-		perror("Error closing fileID");
+		perror("Error closing fd");
 	}
 
     	printf("\n Done!\n");
