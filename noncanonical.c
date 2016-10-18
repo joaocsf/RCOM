@@ -30,11 +30,13 @@
 #define FLAG_RCV 1
 #define A_RCV 2
 #define C_RCV 3
+#define C_I 0x00
+#define C_I2 BIT(6)
 #define BCC_OK 4
 #define STOP 5
 #define D_RCV 6
-#define TRANSMITTER O_WRONLY
-#define RECEIVER O_RDONLY
+#define TRANSMITTER 1
+#define RECEIVER 2
 #define ESCAPE 0x7d
 #define ESCAPE_XOR 0x20
 
@@ -64,6 +66,7 @@ char internal_state = 0;
 
 struct termios oldtio;
 unsigned char ns = 0;
+void debugChar(char* bytes, int len);
 
 char * getSupervisionBuf(char address, char control){
 	char* buff = (char*)malloc(sizeof(char) * SupervisionSize);
@@ -184,6 +187,7 @@ void setBuffer(struct buffer* buffer, char * newBuffer, int newSize){
 
 char* getDataFromBuffer(char * buffer, unsigned int length , unsigned int * newSize){
 	unsigned int size = (length - 6);
+	*newSize=size;
 	unsigned char xor = buffer[4];
 	char * data = (char *)malloc( sizeof(char) * size);
 	int i = 0;
@@ -194,15 +198,17 @@ char* getDataFromBuffer(char * buffer, unsigned int length , unsigned int * newS
 		if(i != 0)
 			xor ^= buffer[i+4];
 	}
+	
 	if(buffer[length - 2] == xor)
 		return data;
-
+	
+	
 	free(data);
 	return NULL;
 }
 
-char parseSupervision(int fd, char* data, unsigned int* length){
-	data = NULL;
+char parseSupervision(int fd, char** data, unsigned int* length){
+
 	unsigned int maxSize = 2 + (4 + PACKAGE_LENGTH) * 2;
 	char buf[sizeof(char) * maxSize];
 	  								//Se reader FAC
@@ -212,13 +218,13 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 		read(fd, &readed, 1);
 
 		switch(internal_state){
-			case START:
+			case START:printf("START: %02x \n",readed);
 				if(readed == F){
 					internal_state = FLAG_RCV;
 					buf[0] = readed;
 				}
 				break;
-			case FLAG_RCV:
+			case FLAG_RCV:printf("FLAG_RCV: %02x \n",readed);
 				switch(readed){
 					case F: //RETORNAR quando algo nao corresponde ao pertendido.
 						break;
@@ -231,7 +237,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case A_RCV:
+			case A_RCV:printf("A_RCV: %02x \n",readed);
 				switch(readed){
 					case F:
 						internal_state = FLAG_RCV;
@@ -240,6 +246,8 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 					case (char)C_RR1:
 					case (char)C_REJ0:
 					case (char)C_REJ1:
+					case (char)C_I:
+					case (char)C_I2:
 					case C_SET:
 					case C_UA:
 						internal_state = C_RCV;
@@ -250,7 +258,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case C_RCV:
+			case C_RCV:printf("C_RCV: %02x \n",readed);
 				switch(readed){
 					case F:
 						internal_state = FLAG_RCV;
@@ -265,7 +273,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case BCC_OK:
+			case BCC_OK:printf("BCC_OK: %02x \n",readed);
 				switch(readed){
 					case F:
 						buf[4] = readed;
@@ -273,18 +281,23 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 					default:
 						internal_state = D_RCV;
-						index = 4;
+						buf[4] = readed;
+						index = 5;
 						break;
 				}
 				break;
-			case D_RCV:
+			case D_RCV:printf("D_RCV: %02x \n",readed);
 					switch(readed){
 						case F:
 							buf[index] = readed;
 							index++;
-
+							printf("antes temp\n");	
 							char* temp = byteDesStuffing(buf, index, length);
-							data = getDataFromBuffer(temp,*length,length);
+							debugChar(temp,*length);
+							
+							printf("antes data\n");
+							*data = getDataFromBuffer(temp,*length,length);
+							printf("depois data\n");
 							free(temp);
 							//Verificar data se as condicoes estao esperadas, ver se o valor de data corresponde com o valor pretendido.
 
@@ -309,7 +322,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 	if(internal_state != FLAG_RCV){
 		internal_state = START;
 	}
-
+	
 	alarm(0);
 	return buf[2];
 }
@@ -332,7 +345,7 @@ int initTransmitter(){
 	unsigned char content;
   	do{
 		content = parseSupervision(fileID, NULL, NULL);
-	}while(content == C_UA);
+	}while(content != C_UA);
 
 	return 0;
 }
@@ -343,7 +356,7 @@ int initReceiver(){
 	unsigned char content;
 	do{
 		content = parseSupervision(fileID, NULL, NULL);
-	}while(content == C_SET);
+	}while(content != C_SET);
 
 	
 
@@ -351,7 +364,7 @@ int initReceiver(){
 
 	setBuffer(&lastBuffer, bufToSend , SupervisionSize);
 	sendLastBuffer(fileID,&lastBuffer);
-	alarm(3);
+	
 
   
 	return 0;
@@ -408,12 +421,12 @@ int llopen(int porta, unsigned char side){
 	fileID = fd;
 
 	if(side == TRANSMITTER){
-		if(!initTransmitter()){
+		if(initTransmitter()){
 			close(fd);
 			exit(-1);
 		}
 	}else{
-		if(!initReceiver()){
+		if(initReceiver()){
 			close(fd);
 			exit(-1);
 		}
@@ -441,13 +454,15 @@ void sendResponse(int fd, char a, char c){
 
 }
 
-int llread(int fd, char* buff){
-	char *data =NULL;
+int llread(int fd, char** buff){
+	char *data;
 	unsigned int length;
-	unsigned char c = parseSupervision(fd,data,&length);
-
+	unsigned char c = parseSupervision(fd,&data,&length);
+	
 	c >>= 6;
-
+	
+	*buff=data;
+	
 	if(data == NULL){//leu mal
 		if(c != ns ){//é repetido
 			sendResponse(fd,A,C_RR(ns));
@@ -467,7 +482,7 @@ int llread(int fd, char* buff){
 			return length;
 		}
 	}
-
+	
 }
 
 
@@ -483,12 +498,15 @@ int llwrite(int fd, char* buffer, int length){
 		unsigned int len = PACKAGE_LENGTH;
 
 		if( i == maxLen){
+			
 			len = length % PACKAGE_LENGTH;
+			printf("len:%d \n",len);
 			if( len == 0)
 				break;
 		}
 		unsigned int frameLength = 0;
 		char * frame =  getDataBuf(A, ns, data,len, &frameLength);
+		debugChar(frame,frameLength);
 
 		while(1){
 
@@ -526,7 +544,7 @@ void debugChar(char* bytes, int len){
 int startConnection(int port_number, char side){
 	
 	signal(SIGALRM, timeOut);
-	unsigned char sideMacro;
+	unsigned int sideMacro;
 	
 	
 	if(side == 's'){
@@ -541,20 +559,21 @@ int startConnection(int port_number, char side){
 	}
 
 	
-	printf("Sending Data : \n");
-	
 	if(sideMacro == TRANSMITTER){
+		printf("Sending Data : \n");
 		char bytes[] = {F,ESCAPE,0x57,0x68,0x66,F}; 
-		llwrite(fileID, bytes,5);
+		llwrite(fileID, bytes,6);
 	}else{
-		char *buff=NULL;		
-		
+		printf("Receiving Data : \n");
+		char *buff;		
 		while(1){
-			unsigned int size=llread(fileID,buff);
-			if(size == -1)
+		
+		unsigned int size=llread(fileID,&buff);
+		debugChar(buff,size);
+			if(size==1)
 				break;
-			debugChar(buff,size);		
 		}		
+				
 		
 	}
 
