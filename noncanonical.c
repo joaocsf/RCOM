@@ -409,7 +409,10 @@ int llopen(int porta, unsigned char side){
 			exit(-1);
 		}
 	}else{
-		parseSupervision(fd);
+		if(!initReceiver()){
+			close(fd);
+			exit(-1);
+		}
 	}
 
 	return fd;
@@ -519,22 +522,36 @@ void debugChar(char* bytes, int len){
 int startConnection(int port_number, char side){
 	
 	signal(SIGALRM, timeOut);
+	unsigned char sideMacro;
 
-	if(side == 's')
+	if(side == 's'){
 		fileID = llopen(port_number, TRANSMITTER);
-	else if(side == 'r')
+		sideMacro=TRANSMITTER;
+	}else if(side == 'r'){
 		fileID = llopen(port_number, RECEIVER);
-	else{
+		sideMacro=RECEIVER;
+	}else{
 		printf("Side must be (sender) 's' or (receiver) 'r' ");
 		return 1;	
 	}
 
 	
 	printf("Sending Data : \n");
-
-
-	//llwrite(fileID, bytes,5);
-
+	
+	if(sideMacro == TRANSMITTER){
+		char bytes[] = {F,ESCAPE,0x57,0x68,0x66,F}; 
+		llwrite(fileID, bytes,5);
+	}else{
+		char *buff=NULL;		
+		
+		while(1){
+			unsigned int size=llread(fd,buff);
+			if(size == -1)
+				break;
+			debugChar(buff,size);		
+		}		
+		
+	}
 
 	if(llclose(fileID) < 0){
 		perror("Error closing fileID");
