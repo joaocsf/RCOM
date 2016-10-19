@@ -4,6 +4,6 @@ Comunnication Protocol developed for the [RCOM](https://sigarra.up.pt/feup/pt/uc
 
 ##Contributors
 
-* [João Ferreira](https://github.com/joaocsf)
 * [David Azevedo](https://github.com/PeaceOff)
+* [João Ferreira](https://github.com/joaocsf)
 * [José Martins](https://github.com/JoseLuisMartins)
