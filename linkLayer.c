@@ -1,59 +1,6 @@
 /*Non-Canonical Input Processing*/
+#include "linkLayer.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <termios.h>
-#include <stdio.h>
-#include <string.h>
-#include <strings.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <unistd.h>
-
-#define BAUDRATE B38400
-#define MODEMDEVICE "/dev/ttyS1"
-#define _POSIX_SOURCE 1 /* POSIX compliant source */
-#define FALSE 0
-#define TRUE 1
-#define BIT(n) (0x01 << n)
-
-#define F 0x7E
-#define A 0x03
-#define A_SENDER 0x03
-#define A_RECIVER 0x01
-#define C_SET 0x03
-#define C_UA 0x07
-#define C_INFO(n) (n << 6)
-
-#define START 0
-#define FLAG_RCV 1
-#define A_RCV 2
-#define C_RCV 3
-#define C_I 0x00
-#define C_I2 BIT(6)
-#define BCC_OK 4
-#define STOP 5
-#define D_RCV 6
-#define TRANSMITTER 1
-#define RECEIVER 2
-#define ESCAPE 0x7d
-#define ESCAPE_XOR 0x20
-
-#define C_RR0 0x05
-#define C_RR1 (BIT(7) | C_RR0)
-#define C_RR(n) ((n << 7) | 0x05)
-
-#define C_REJ0 0x01
-#define C_REJ1 (BIT(7) | C_REJ0)
-
-#define C_REJ(n) ((n << 7) | 0x01)
-
-#define RS(n) (n >>7 )
-
-#define PACKAGE_LENGTH 5
-
-#define SupervisionSize 5
 
 struct buffer{
 	char * buffer;
@@ -61,12 +8,12 @@ struct buffer{
 } lastBuffer;
 
 int fileID;
-
+unsigned int sideMacro;
 char internal_state = 0;
 
 struct termios oldtio;
 unsigned char ns = 0;
-void debugChar(char* bytes, int len);
+
 
 char * getSupervisionBuf(char address, char control){
 	char* buff = (char*)malloc(sizeof(char) * SupervisionSize);
@@ -213,6 +160,7 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 	char buf[sizeof(char) * maxSize];
 	  								//Se reader FAC
 	unsigned int index = 0;
+	printf("--------------------------------------------\n");
 	while(internal_state != STOP){
 		char readed;
 		read(fd, &readed, 1);
@@ -228,7 +176,8 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 				switch(readed){
 					case F: //RETORNAR quando algo nao corresponde ao pertendido.
 						break;
-					case A:
+					case A_SENDER:
+					case A_RECEIVER:
 						internal_state = A_RCV;
 						buf[1] = readed;
 						break;
@@ -237,17 +186,18 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 						break;
 				}
 				break;
-			case A_RCV:printf("A_RCV: %02x \n",readed);
+			case A_RCV:printf("A_RCV: %02x  \n",readed);
 				switch(readed){
 					case F:
 						internal_state = FLAG_RCV;
 						break;
-					case (char)C_RR0:
+					case C_RR0:
 					case (char)C_RR1:
-					case (char)C_REJ0:
+					case C_REJ0:
 					case (char)C_REJ1:
-					case (char)C_I:
-					case (char)C_I2:
+					case C_I:
+					case C_I2:
+					case C_DISC:
 					case C_SET:
 					case C_UA:
 						internal_state = C_RCV;
@@ -291,13 +241,13 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 						case F:
 							buf[index] = readed;
 							index++;
-							printf("antes temp\n");	
+							
 							char* temp = byteDesStuffing(buf, index, length);
 							debugChar(temp,*length);
 							
-							printf("antes data\n");
+							
 							*data = getDataFromBuffer(temp,*length,length);
-							printf("depois data\n");
+							
 							free(temp);
 							//Verificar data se as condicoes estao esperadas, ver se o valor de data corresponde com o valor pretendido.
 
@@ -380,6 +330,7 @@ int llopen(int porta, unsigned char side){
     int fd;
     struct termios newtio;
 
+	signal(SIGALRM, timeOut);
 
 	char nomePorta[11];
 	strcpy(nomePorta, "/dev/ttyS0");
@@ -436,6 +387,40 @@ int llopen(int porta, unsigned char side){
 }
 
 int llclose(int fd){
+
+	unsigned char c;
+	
+	if(sideMacro == TRANSMITTER){
+		//sending DISC
+    		char* disc = getSupervisionBuf(A_SENDER,C_DISC);
+		setBuffer(&lastBuffer,disc,SupervisionSize);
+		sendLastBuffer(fileID,&lastBuffer);
+		alarm(3);
+		//read DISC
+		do{
+	 		c=parseSupervision(fileID,NULL,NULL);
+		}while(c != C_DISC);
+		//SEND UA
+		char* ua = getSupervisionBuf(A_SENDER,C_UA);
+		setBuffer(&lastBuffer,ua,SupervisionSize);
+		sendLastBuffer(fileID,&lastBuffer);
+		alarm(3);
+
+	}else{
+		//read disc
+		do{
+	 		c=parseSupervision(fileID,NULL,NULL);
+		}while(c != C_DISC);
+		//sending DISC
+    		char* disc = getSupervisionBuf(A_RECEIVER,C_DISC);
+		setBuffer(&lastBuffer,disc,SupervisionSize);
+		sendLastBuffer(fileID,&lastBuffer);
+		alarm(3);
+		//read UA
+		do{
+	 		c=parseSupervision(fileID,NULL,NULL);
+		}while(c != C_UA);
+	}
 
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
       perror("tcsetattr");
@@ -541,61 +526,9 @@ void debugChar(char* bytes, int len){
 	printf("\n");
 }
 
-int startConnection(int port_number, char side){
-	
-	signal(SIGALRM, timeOut);
-	unsigned int sideMacro;
-	
-	
-	if(side == 's'){
-		fileID = llopen(port_number, TRANSMITTER);
-		sideMacro=TRANSMITTER;
-	}else if(side == 'r'){
-		fileID = llopen(port_number, RECEIVER);
-		sideMacro=RECEIVER;
-	}else{
-		printf("Side must be (sender) 's' or (receiver) 'r' ");
-		return 1;	
-	}
 
 	
-	if(sideMacro == TRANSMITTER){
-		printf("Sending Data : \n");
-		char bytes[] = {F,ESCAPE,0x57,0x68,0x66,F}; 
-		llwrite(fileID, bytes,6);
-	}else{
-		printf("Receiving Data : \n");
-		char *buff;		
-		while(1){
-		
-		unsigned int size=llread(fileID,&buff);
-		debugChar(buff,size);
-			if(size==1)
-				break;
-		}		
-				
-		
-	}
-
-	if(llclose(fileID) < 0){
-		perror("Error closing fileID");
-	}
-
-    	printf("\n Done!\n");
-
-	return 0;
-}
-
-int main(int argc, char** argv){
-
-	if(argc != 3){
-		printf("Usage: port_number <int> side <char>\n");
-		return -1;
-	}
-
-	startConnection(atoi(argv[1]),argv[2][0]);
-
-
 	
-    return 0;
-}
+	
+
+
