@@ -57,6 +57,7 @@
 
 #define SupervisionSize 5
 
+void llinit(char side);
 
 int llopen(int porta, unsigned char side);
 
@@ -69,4 +70,3 @@ int llwrite(int fd, char* buffer, int length);
 void debugChar(char* bytes, int len);
 
 #endif 
-
