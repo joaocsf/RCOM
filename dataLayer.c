@@ -7,6 +7,19 @@
 #define FILE_SIZE 0
 #define FILE_NAME 1
 
+#define READING_CONTROLL_START 0x00
+#define READING_CONTROLL_END 0x10
+#define READING_DATA 0x20
+
+
+#define READING_CONTROLL_T 0x01
+#define READING_CONTROLL_FILESIZE 0x02
+#define READING_CONTROLL_NAME 0x03
+
+#define READING_DATA_SEQUENCE 0x21
+#define READING_DATA_LENGTH 0x22
+#define READING_DATA_PACKETS 0x23
+
 
 struct controlData{
 	char *name;
@@ -84,6 +97,154 @@ char decodeControlPacket(char * buff, struct controlData *packet){
 	return buff[0];
 }
 
+int readData(int fd, char ** data){
+	int res=  0;
+	do{
+		res = llread(fd, data);	
+	}while(res < 0);
+	return res;
+}
+
+/*
+
+#define READING_CONTROLL_START 0x00
+#define READING_CONTROLL_END 0x10
+#define READING_DATA 0x20
+#define READING_END 0xFF
+
+#define READING_CONTROLL_T 0x01
+#define READING_CONTROLL_FILESIZE 0x02
+#define READING_CONTROLL_NAME 0x03
+#define READING_CONTROLL_FINALIZE 0x04
+
+#define READING_DATA_SEQUENCE 0x21
+#define READING_DATA_LENGTH 0x22
+#define READING_DATA_PACKETS 0x23
+
+#define START_PACKET 2
+#define END_PACKET 3
+#define FILE_SIZE 0
+#define FILE_NAME 1
+
+/**/
+char* readPackets(int fd, unsigned int* buffLength){
+	char loop = 1;
+	unsigned char bufferLength = 200;
+	unsigned int globalIndex = 0; 	
+	unsigned char estado = READING_CONTROLL_START;		
+	char isStart = 1;
+	char * buffer = (char*)malloc(sizeof(char)*bufferLength);
+	
+	unsigned int controllIndex = 0;
+	char controllBufferStart[3+255*2];	
+	char controllBufferEnd[3+255*2];	
+	
+	char data[3+255*2];	
+	
+
+	unsigned char readedTypes = 0;	
+
+	char * res;
+	while(estado != READING_END){
+		char * tempData;
+		
+		unsigned int index = 0;	
+	
+		int length = readData(fd, &tempData);
+
+
+		while(index < length){
+			switch(estado){
+				case READING_CONTROLL_START:
+					
+					if(tempData[index] == START_PACKET){
+						buffer[globalIndex] = tempData[index];
+						estado = READING_CONTROLL_T;
+						isStart = 1; 
+						globalIndex++;
+						index++;
+					}			
+						
+
+					break;
+				case READING_CONTROLL_END:
+					isStart = 0;
+							
+					break;
+				case READING_CONTROLL_T:
+					switch(tempData[index]){
+						case FILE_SIZE:
+														
+								
+							break;
+						case FILE_NAME:
+							
+							break;
+					}
+
+					readedTypes++;
+					break;
+				case READING_CONTROLL_FILESIZE:
+					readedTypes = 0;
+					isStart = 0;			
+					
+					break;
+				case READING_CONTROLL_NAME:
+
+					break;
+				case READING_CONTROLL_FINALIZE:
+
+					break;
+			
+			}
+			
+				
+		}		
+	
+		//FAZER FREE tempDATA;
+		free(tempData);		
+
+		
+	}	
+	
+}
+
+
+char * readFile(int fd, struct * controlData, unsigned int * length){
+	
+	char loop;
+	char * fileData; //Include StartControll and EndControllData.
+	
+	while(loop){
+		
+		
+		//getStartControl
+		//GetDataPackets
+		//getEndControl
+				
+									
+
+
+	}
+	
+}
+
+void sendFile(char* path){
+	
+	//readFile
+
+	//ControlPacket1
+	
+	//While(dataPackets)	
+
+	//ControlPacket2
+	
+	//FreeMEMORY
+	
+
+}
+
+
 
 int main(int argc,char *argv[]){
 	if(argc != 3){
@@ -92,6 +253,7 @@ int main(int argc,char *argv[]){
 	}
 	
 	char side = argv[2][0];
+	
 	int port_number = atoi(argv[1]);
 	unsigned char sideMacro;
 
@@ -115,7 +277,8 @@ int main(int argc,char *argv[]){
 		printf("Side must be (sender) 's' or (receiver) 'r' ");
 		return 1;	
 	}
-
+	
+	llinit(sideMacro);
 	
 	if(sideMacro == TRANSMITTER){
 		printf("Sending Data : \n");
