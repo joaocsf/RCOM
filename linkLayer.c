@@ -386,21 +386,30 @@ int llopen(int porta, unsigned char side){
 	return fd;
 }
 
+void llinit(char side){
+	sideMacro =side;
+}
+
 int llclose(int fd){
 
 	unsigned char c;
 	
+	
 	if(sideMacro == TRANSMITTER){
 		//sending DISC
+		printf("sendng DISC \n");
     		char* disc = getSupervisionBuf(A_SENDER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
 		alarm(3);
 		//read DISC
 		do{
+						printf(" DISC \n");			
 	 		c=parseSupervision(fileID,NULL,NULL);
+			printf("receiving DISC \n");
 		}while(c != C_DISC);
 		//SEND UA
+		printf("sendng UA \n");
 		char* ua = getSupervisionBuf(A_SENDER,C_UA);
 		setBuffer(&lastBuffer,ua,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
@@ -499,13 +508,17 @@ int llwrite(int fd, char* buffer, int length){
 			sendLastBuffer(fd, &lastBuffer);
 			alarm(3);
 			//Wait RR
+			printf("Waiting for disc");
 			char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!
-
-
+			
+			printf("RS %x %x \n" , RS(res), ns);
+			
 			if(ns != RS(res)){//proxima trama
 				ns = ns ? 0:1;
+				printf("Ns correto\n");
 				break;
 			}else{//resend trama
+				printf("Ns resend\n");
 				continue;
 			}
 		}
@@ -530,5 +543,4 @@ void debugChar(char* bytes, int len){
 	
 	
 	
-
 
