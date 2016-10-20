@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <unistd.h>
 
+
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -69,4 +70,4 @@ int llwrite(int fd, char* buffer, int length);
 
 void debugChar(char* bytes, int len);
 
-#endif 
+#endif
