@@ -3,12 +3,12 @@
 
 #define MAX_DATA_LENGTH 65535
 
-#define DATA_PACKET 1
-#define START_PACKET 2
-#define END_PACKET 3
+#define DATA_PACKET 0x01
+#define START_PACKET 0x02
+#define END_PACKET 0x03
 
-#define FILE_SIZE 0
-#define FILE_NAME 1
+#define FILE_SIZE 0x00
+#define FILE_NAME 0x01
 
 
 #define CONTROLB
@@ -35,9 +35,18 @@ struct controlData{
 	unsigned int length;
 };
 
+struct controlData getControlData(){
+	struct controlData controlData;
+	controlData.name = NULL;
+	controlData.length = 0;
+	return controlData;
+
+}
+
 unsigned char dataPacketNumber = 0;
 
 void clearControlData(struct controlData * packet){
+	printf("FREEING!!\n");
 	if(packet->name != NULL)
 		free(packet->name);
 	packet->length = 0;
@@ -76,11 +85,10 @@ char * decodeDataPacket(char* packet, unsigned int * bufferLength){
 
 	unsigned int packetNumber = (unsigned char)packet[1]; //N
 	unsigned int packetSize = 256 * (unsigned char)packet[2] + (unsigned char)packet[3];
+	*bufferLength = packetSize;
 
 	char * buff = (char*)malloc(sizeof(char) * packetSize);
-
 	memcpy(buff, packet + 4, packetSize);
-	*bufferLength = packetSize;
 
 	return buff;
 }
@@ -146,8 +154,11 @@ char decodeControlPacket(char * buff, struct controlData *packet){
 
 int readData(int fd, char ** data){
 	int res=  0;
+	*data = NULL;
 	do{
+
 		res = llread(fd, data);
+
 	}while(res < 0);
 	return res;
 }
@@ -198,9 +209,9 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	unsigned int length2 = 0;
 
 	unsigned char readedTypes = 0;
-
+	char * tempData;
 	while(estado != READING_END){
-		char * tempData;
+
 
 		unsigned int index = 0;
 		printf("Reading nextData:\n");
@@ -208,34 +219,38 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 
 
 		while(index < length){
+			printf("[%d, %02x]::", index, estado);
 			switch(estado){
-				case READING_CONTROL_START: printf("READING_CONTROL_START %02x", tempData[index]);
+				case READING_CONTROL_START: printf("READING_CONTROL_START %02x\n", tempData[index]);
 					currentPacketIndex = 0;
 					if(tempData[index] == START_PACKET){
-						controlBufferStart[currentPacketIndex] = tempData[index];
-						estado = READING_CONTROL_T;
 						controlBuffer = controlBufferStart;
+						controlBuffer[currentPacketIndex] = tempData[index];
+						estado = READING_CONTROL_T;
 						isStart = 1;
 						currentPacketIndex++;
 						index++;
-					}
+					}else
+						index++;
 					break;
-				case READING_CONTROL_END:
+				case READING_CONTROL_END:printf("READING_CONTROL_END %02x\n", tempData[index]);
 					currentPacketIndex = 0;
 					isStart = 0;
 					if(tempData[index] == END_PACKET){
-						controlBufferStart[currentPacketIndex] = tempData[index];
-						estado = READING_CONTROL_T;
+
 						controlBuffer = controlBufferEnd;
-						isStart = 1;
+						controlBuffer[currentPacketIndex] = tempData[index];
+						estado = READING_CONTROL_T;
+						isStart = 0;
 						currentPacketIndex++;
 						index++;
-					}
+					}else
+						index++;
 
 					break;
 				case READING_CONTROL_T:
 					switch(tempData[index]){
-						case FILE_SIZE:printf("FILE_SIZE %02x", tempData[index]);
+						case FILE_SIZE:printf("FILE_SIZE %02x \n", tempData[index]);
 							controlBuffer[currentPacketIndex] = tempData[index];
 							estado = READING_CONTROL_FILESIZE;
 							parameterLength = -1;
@@ -278,20 +293,25 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 					}
 					break;
 				case READING_CONTROL_FINALIZE: printf("READING_CONTROL_FINALIZE: %02x \n", tempData[index] );
-					printf("READING_CONTROL:FINALIZe\n");
-					debugChar(controlBuffer, currentPacketIndex);
+
 
 					controlSize = currentPacketIndex;
-					decodeControlPacket(controlBuffer, fileInfo);
+					debugChar(controlBuffer, currentPacketIndex);
 
 					bufferLength = fileInfo->length;
+
+					decodeControlPacket(controlBuffer, fileInfo);
+
+					printf("Debug: %s, %d\n", fileInfo->name, fileInfo->length);
+
 					buffer = (char*)malloc(sizeof(char) * bufferLength);
 					estado = READING_DATA;
 					index++;
 					readedTypes = 0;
 					isStart = 0;
+
 					break;
-				case READING_DATA:
+				case READING_DATA:  printf("READING_DATA: %02x \n", tempData[index] );
 					currentPacketIndex = 0;
 					switch(tempData[index]){
 						case DATA_PACKET:
@@ -300,31 +320,34 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 							index++;
 							currentPacketIndex++;
 						break;
+						default:
+							index++;
+						break;
 					}
 					break;
-				case READING_DATA_SEQUENCE:
+				case READING_DATA_SEQUENCE: printf("READING_DATA_SEQUENCE: %02x \n", tempData[index] );
 					dataPacket[currentPacketIndex] = tempData[index];
 					estado = READING_DATA_LENGTH0;
 					index++;
 					currentPacketIndex++;
 					break;
-				case READING_DATA_LENGTH0:
+				case READING_DATA_LENGTH0: printf("READING_DATA_LENGTH0: %02x \n", tempData[index] );
 					dataPacket[currentPacketIndex] = tempData[index];
 					estado = READING_DATA_LENGTH1;
-					parameterLength = 256 * (unsigned char)tempData[index];
+					parameterLength = ((unsigned char)tempData[index] << 8);
 					index++;
 					currentPacketIndex++;
 					break;
-				case READING_DATA_LENGTH1:
+				case READING_DATA_LENGTH1: printf("READING_DATA_LENGTH1: %02x \n", tempData[index] );
 					dataPacket[currentPacketIndex] = tempData[index];
 					estado = READING_DATA_PACKETS;
 					parameterLength += (unsigned char)tempData[index];
+					printf("parameterLength: %d", parameterLength);
 					index++;
 					currentPacketIndex++;
 					break;
-				case READING_DATA_PACKETS:
+				case READING_DATA_PACKETS: printf("READING_DATA_PACKETS: %02x \n", tempData[index] );
 					dataPacket[currentPacketIndex] = tempData[index];
-					estado = READING_DATA_FINALIZE;
 
 					parameterLength--;
 					index++;
@@ -335,21 +358,29 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 					}
 
 					break;
-				case READING_DATA_FINALIZE:
+				case READING_DATA_FINALIZE:  printf("READING_DATA_FINALIZE: %02x \n", tempData[index] );
 
 					//Funcao que retorna o char* dados ou o apontador para os dados + numero de dados para ler :D
+					printf("A\n");
 					length2 = 0;
+					printf("dataPacket[0] %02x \n", dataPacket[0]);
 					data = decodeDataPacket(dataPacket, &length2);
 					memcpy(buffer + bufferIndex, data, length2);
-
-					free(data);
+					printf("B\n");
+					//free(data);
+					printf("C\n");
 					bufferIndex+=length2;
+					index++;
+					printf("D\n");
 					if(bufferIndex >= bufferLength){
+						printf("Alterando Estado para ControlEND\n");
 						estado = READING_CONTROL_END;
 					}else
 						estado = READING_DATA;
-					index++;
+
+					printf("E\n");
 					parameterLength = 0;
+
 					break;
 			}
 
@@ -439,18 +470,21 @@ void testDataPacket(){
 
 }
 
-testSendFile(int fd, int side){
+void testSendFile(int fd, int side){
+	printf("######TESTSEINDFILE()\n");
 
 	if(side == TRANSMITTER){
 		sendFile(fd,"A");
 	}else{
 		unsigned int size = 0;
-		struct controlData controlData;
-		char file = readFile(fd, &controlData ,&size );
+		struct controlData controlData = getControlData();
+		char* file = readFile(fd, &controlData ,&size );
 
 		printf("Received: %s", file);
 
 	}
+
+	printf("######ENDTESTSEINDFILE()\n");
 
 }
 
