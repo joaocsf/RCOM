@@ -31,13 +31,12 @@
 
 
 struct controlData{
-	char *name;
+	char name[255];
 	unsigned int length;
 };
 
 struct controlData getControlData(){
 	struct controlData controlData;
-	controlData.name = NULL;
 	controlData.length = 0;
 	return controlData;
 
@@ -46,9 +45,7 @@ struct controlData getControlData(){
 unsigned char dataPacketNumber = 0;
 
 void clearControlData(struct controlData * packet){
-	printf("FREEING!!\n");
-	if(packet->name != NULL)
-		free(packet->name);
+
 	packet->length = 0;
 }
 //Passas-lhe os dados e o tamanho maximo que ele devolve o packet com o tamanho + o tamanho dos dados OP
@@ -79,19 +76,16 @@ char * createDataPacket(char * data, unsigned int dataLength, unsigned int * buf
 	return buff;
 }
 //Mandas o packet e ele devolve os dados + o seu tamanho;
-char * decodeDataPacket(char* packet, unsigned int * bufferLength){
+unsigned int decodeDataPacket(char* destination, char* packet){
 	if(packet[0] != DATA_PACKET)
-		return NULL;
+		return -1;
 
 	unsigned int packetNumber = (unsigned char)packet[1]; //N
+	packetNumber++;
 	unsigned int packetSize = 256 * (unsigned char)packet[2] + (unsigned char)packet[3];
-	*bufferLength = packetSize;
 
-	char * buff = (char*)malloc(sizeof(char) * packetSize);
-	printf("AdressBuffA: %x\n", buff);
-	memcpy(buff, packet + 4, packetSize); //4
-	printf("AdressBuff: %x\n", buff);
-	return buff;
+	memcpy(destination, packet + 4, packetSize); //4
+	return packetSize;
 }
 
 char* createControlPacket(char typePacket,char *name,unsigned int fileSize, unsigned int *length){
@@ -134,7 +128,7 @@ char decodeControlPacket(char * buff, struct controlData *packet){
 		switch(buff[index]){
 			case FILE_NAME:
 				tempSize =buff[index + 1];
-				packet->name = (char *)malloc(sizeof(char) * tempSize + 1);
+
 				memcpy(	packet->name, buff + index + 2, tempSize);
 				packet->name[tempSize]= 0;
 				index += 2 + tempSize;
@@ -153,9 +147,8 @@ char decodeControlPacket(char * buff, struct controlData *packet){
 	return buff[0];
 }
 
-int readData(int fd, char ** data){
+int readData(int fd, char * data){
 	int res=  0;
-	*data = NULL;
 	do{
 
 		res = llread(fd, data);
@@ -203,20 +196,19 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	char controlBufferEnd[3+255*2];
 
 	char* controlBuffer;
-	char * data;
+	char data[MAX_DATA_LENGTH];
 
 	char dataPacket[3+255*2];
-	int temporario = 0;
 	unsigned int length2 = 0;
 
 	unsigned char readedTypes = 0;
-	char * tempData;
+	char tempData[PACKAGE_LENGTH];
 	while(estado != READING_END){
 
 
 		unsigned int index = 0;
 		printf("Reading nextData:\n");
-		int length = readData(fd, &tempData);
+		int length = readData(fd, tempData);
 
 
 		while(index < length){
@@ -363,22 +355,16 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 
 					//Funcao que retorna o char* dados ou o apontador para os dados + numero de dados para ler :D
 					printf("A\n");
-					length2 = 0;
 					printf("dataPacket[0] %02x \n", dataPacket[0]);
-					data = decodeDataPacket(dataPacket, &length2);
+					length2 = decodeDataPacket(data, dataPacket);
 
 					printf("Adress: %x\n", data);
 
 					debugChar(data,length2);
-					for(temporario=0; temporario< length2; temporario++){
-						buffer[temporario + bufferIndex] = data[temporario];
-					}
 
 					printf("Adress: %x\n", data);
 
-					//memcpy(buffer + bufferIndex, data, length2);
-					printf("B\n");
-					free(data);
+					memcpy(buffer + bufferIndex, data, length2);
 					printf("C\n");
 					bufferIndex+=length2;
 					index++;
@@ -396,10 +382,19 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 			}
 
 		}
-		free(tempData);
 	}
+	decodeControlPacket(controlBufferStart, fileInfo);
 
-	if(!memcmp(controlBufferStart, controlBufferEnd, controlSize))
+	printf("fileInfo %s %d\n",fileInfo->name, fileInfo->length);
+
+	decodeControlPacket(controlBufferEnd, fileInfo);
+	printf("fileInfo2 %s %d\n",fileInfo->name, fileInfo->length);
+
+	debugChar(controlBufferStart, controlSize);
+	debugChar(controlBufferEnd, controlSize);
+
+
+	if(!memcmp(controlBufferStart + 1, controlBufferEnd + 1, controlSize))
 		return buffer;
 
 	return NULL;
@@ -421,7 +416,7 @@ void sendFile(int fd, char* path){
 
 	char * fileData = "OlaBelhoteTudoBemContigo? EU ca estou bem..... poucos bytes pah!"; //Include StartControl and EndControlData.
 	char * fileData2 = fileData;
-	controlData.name = "Ficheiro Fixe";
+	memcpy(controlData.name, "Ficheiro Fixe",14);
 	controlData.length = 66;
 	unsigned int length = controlData.length;
 	unsigned int size;
@@ -432,7 +427,7 @@ void sendFile(int fd, char* path){
 	llwrite(fd, controlStart, size);
 
 	free(controlStart);
-
+	controlStart = NULL;
 	unsigned int offset = 0;
 
 	do{
@@ -445,6 +440,7 @@ void sendFile(int fd, char* path){
 		printf("----Sending DataBuffer!\n");
 		llwrite(fd,data,size);
 		free(data);
+		data = NULL;
 	}while(offset < length);
 
 
@@ -452,6 +448,7 @@ void sendFile(int fd, char* path){
 	char * controlEND = createControlPacket(END_PACKET,controlData.name,controlData.length,&size);
 	llwrite(fd, controlEND, size);
 	free(controlEND);
+	controlEND = NULL;
 
 }
 
@@ -468,13 +465,14 @@ void testDataPacket(){
 	printf("buffLength %d", buffLength);
 
 	debugChar(buffy,buffLength);
+	char buffy2[MAX_DATA_LENGTH];
 
-	char * buffy2 = decodeDataPacket(buffy, &buffLength);
+	buffLength = decodeDataPacket(buffy2, buffy);
 
 	debugChar(buffy2,buffLength);
 
 	free(buffy);
-	free(buffy2);
+	buffy = NULL;
 
 
 	printf("FINALIZING: testDataPacket()\n");
@@ -491,7 +489,7 @@ void testSendFile(int fd, int side){
 		struct controlData controlData = getControlData();
 		char* file = readFile(fd, &controlData ,&size );
 
-		printf("Received: %s", file);
+		printf("testSendFile: Received: %s", file);
 
 	}
 
@@ -516,7 +514,6 @@ int main(int argc,char *argv[]){
 
 	unsigned int size;
 	struct controlData batata;
-	batata.name = NULL;
 	char * data = createControlPacket(START_PACKET,"ola",6,&size);
 
 	decodeControlPacket(data, &batata);
@@ -540,34 +537,7 @@ int main(int argc,char *argv[]){
 
 	testSendFile(fileID, sideMacro);
 
-	if(sideMacro == TRANSMITTER){
-		printf("Sending Data : \n");
-		//char bytes[] = {F,ESCAPE,0x57,0x68,0x66,F};
-		llwrite(fileID, data,size);
-
-		if(llclose(fileID) < 0){
-			perror("Error closing fileID");
-	}
-	}else{
-		printf("Receiving Data : \n");
-		char *buff;
-		while(1){
-			struct controlData data;
-			readPackets(fileID,NULL, &data);
-			unsigned int size=llread(fileID,&buff);
-			debugChar(buff,size);
-			if(size==1)
-				break;
-		}
-		if(llclose(fileID) < 0)
-			perror("Error closing fileID");
-
-
-	}
-
-
-
-    	printf("\n Done!\n");
+	printf("\n Done!\n");
 
 
 

@@ -57,6 +57,8 @@
 
 #define PACKAGE_LENGTH 5
 
+#define MAX_PACKAGE_SIZE (2 + (4 + PACKAGE_LENGTH) * 2)
+#define MAX_PACKAGE_DESTUFFED_SIZE (6 + PACKAGE_LENGTH)
 #define SupervisionSize 5
 
 void llinit(char side);
@@ -65,7 +67,7 @@ int llopen(int porta, unsigned char side);
 
 int llclose(int fd);
 
-int llread(int fd, char** buff);
+int llread(int fd, char* buff);
 
 int llwrite(int fd, char* buffer, int length);
 

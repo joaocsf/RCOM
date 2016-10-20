@@ -3,7 +3,7 @@
 
 
 struct buffer{
-	char * buffer;
+	char buffer[MAX_PACKAGE_SIZE];
 	int bufSize;
 } lastBuffer;
 
@@ -15,14 +15,12 @@ struct termios oldtio;
 unsigned char ns = 0;
 
 
-char * getSupervisionBuf(char address, char control){
-	char* buff = (char*)malloc(sizeof(char) * SupervisionSize);
-	buff[0] = F;
-	buff[1] = address;
-	buff[2] = control;
-	buff[3] = buff[1] ^ buff[2];
-	buff[4] = F;
-	return buff;
+void getSupervisionBuf(char * buffer, char address, char control){
+	buffer[0] = F;
+	buffer[1] = address;
+	buffer[2] = control;
+	buffer[3] = buffer[1] ^ buffer[2];
+	buffer[4] = F;
 }
 
 int bytesDuped(char * buf, unsigned int length){
@@ -37,10 +35,9 @@ int bytesDuped(char * buf, unsigned int length){
 	return res;
 }
 
-char* byteDesStuffing(char * buf,unsigned int length, unsigned int * rLen){
+unsigned int byteDesStuffing(char* res, char * buf,unsigned int length){
 	unsigned int len = length - bytesDuped(buf, length);
-	*rLen = len;
-	char* res = (char *)malloc(sizeof(char) *  len);
+
 	int i = 0;
 	int n = 0;
 	for(; i < length; i++){
@@ -52,18 +49,16 @@ char* byteDesStuffing(char * buf,unsigned int length, unsigned int * rLen){
 		}else{
 			res[n] = buf[i];
 		}
-
 		n++;
 	}
-	return res;
+	return len;
 }
 
-char* byteStuffing(char * buf,unsigned int length, int stuffingLength, unsigned int * rLen){
+unsigned int byteStuffing(char * res, char * buf,unsigned int length, int stuffingLength){
+
 	unsigned int lengthR = length + stuffingLength;
-	char * res = (char*)malloc(sizeof(char)* (lengthR));
 	int offset = 0;
 	int i = 0;
-	(*rLen) = lengthR;
 	for(; i < length; i++){
 		if(i == 0 || i == length-1){
 			res[i+offset] = buf[i];
@@ -74,16 +69,16 @@ char* byteStuffing(char * buf,unsigned int length, int stuffingLength, unsigned 
 		}else
 			res[i+offset] = buf[i];
 	}
-	return res;
+	return lengthR;
 }
-
-char * getDataBuf(char addr, char ns, char * data,unsigned int length, unsigned int* rLen){
+//	char res[MAX_PACKAGE_SIZE];
+unsigned int getDataBuf(char * res, char addr, char ns, char * data,unsigned int length){
 
 	int dataLength = (length < PACKAGE_LENGTH)? length : PACKAGE_LENGTH;
 
 	int totalLength = 5 + dataLength + 1;
-	int buffSize = sizeof(char) * totalLength;
-	char* buff = (char*)malloc(buffSize);
+
+	char buff[MAX_PACKAGE_DESTUFFED_SIZE];
 
 	buff[0] = F;
 	buff[1] = addr;
@@ -107,9 +102,8 @@ char * getDataBuf(char addr, char ns, char * data,unsigned int length, unsigned 
 
 	buff[5 + dataLength] = F;
 
-	char * res = byteStuffing(buff, totalLength, stuffSize,rLen);
-	free(buff);
-	return res;
+	return byteStuffing(res, buff, totalLength, stuffSize);
+
 }
 
 void sendBytes(int fd, char* buf, int tamanho){
@@ -127,28 +121,24 @@ void sendLastBuffer(int fd, struct buffer* buffer){
 }
 
 void setBuffer(struct buffer* buffer, char * newBuffer, int newSize){
-	free(buffer->buffer); 
-	buffer->buffer = newBuffer;
+	memcpy(buffer->buffer,newBuffer,newSize);
 	buffer->bufSize = newSize;
 }
 
-char* getDataFromBuffer(char * buffer, unsigned int length , unsigned int * newSize){
+unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 	unsigned int size = (length - 6);
-	*newSize=size;
 	unsigned char xor = buffer[4];
 
 	printf("Antes Malloc %d\n", size);
 
-	char * data;
-	data = (char *)malloc( (size_t)(sizeof(char) * size));
 	write(1, "OLA",3);
-	if(data == NULL)
+	if(res == NULL)
 		printf("CAN'T ALLOC!!!! DAMN SON \n");
 
 	printf("Apos Malloc %d\n", size);
 	int i = 0;
 	for(; i < size; i++){
-		data[i] = buffer[i+4];
+		res[i] = buffer[i+4];
 
 		if(i != 0)
 			xor ^= buffer[i+4];
@@ -157,18 +147,16 @@ char* getDataFromBuffer(char * buffer, unsigned int length , unsigned int * newS
 	printf("Verdade? %d\n", size);
 
 	if(buffer[length - 2] == xor)
-		return data;
+		return size;
 
-
-	free(data);
-	return NULL;
+	return -1;
 }
 
-char parseSupervision(int fd, char** data, unsigned int* length){
+char parseSupervision(int fd, char* data, unsigned int* length){
 
 	unsigned int maxSize = 2 + (4 + PACKAGE_LENGTH) * 2;
 	char buf[maxSize];
-	char* temp = NULL;
+	char temp[MAX_PACKAGE_DESTUFFED_SIZE];
 	unsigned int lengthTemp;
 	  								//Se reader FAC
 	unsigned int index = 0;
@@ -260,21 +248,20 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 
 							printf("Index PASSOU!!!: %d\n", index);
 
-							temp = byteDesStuffing(buf, index, &lengthTemp);
+							lengthTemp = byteDesStuffing(temp,buf, index);
 							debugChar(temp,lengthTemp);
 							printf("Ja nao passa!!!: %d\n", index);
 
-							*data = getDataFromBuffer(temp,lengthTemp,length);
+							*length = getDataFromBuffer(data,temp,lengthTemp);
 
-							debugChar(*data,*length);
+							debugChar(data,*length);
 
 							//Verificar data se as condicoes estao esperadas, ver se o valor de data corresponde com o valor pretendido.
 
 							internal_state=STOP;
 
 							printf("D_RCV: END\n");
-							free(temp);
-							temp = NULL;
+
 						break;
 						default:
 							if(index >= maxSize -1){
@@ -294,7 +281,7 @@ char parseSupervision(int fd, char** data, unsigned int* length){
 	if(internal_state != FLAG_RCV){
 		internal_state = START;
 	}
-
+	printf("------Finalized Supervision \n");
 	alarm(0);
 	return buf[2];
 }
@@ -308,7 +295,8 @@ void timeOut(){
 
 
 int initTransmitter(){
-	char * bufToSend = getSupervisionBuf(A,C_SET);
+	char bufToSend[SupervisionSize];
+	getSupervisionBuf(bufToSend,A,C_SET);
 
 	setBuffer(&lastBuffer, bufToSend , SupervisionSize);
 	sendLastBuffer(fileID,&lastBuffer);
@@ -332,12 +320,11 @@ int initReceiver(){
 
 
 
-	char * bufToSend = getSupervisionBuf(A,C_UA);
+	char bufToSend[SupervisionSize];
+	getSupervisionBuf(bufToSend,A,C_UA);
 
 	setBuffer(&lastBuffer, bufToSend , SupervisionSize);
 	sendLastBuffer(fileID,&lastBuffer);
-
-
 
 	return 0;
 
@@ -420,7 +407,8 @@ int llclose(int fd){
 	if(sideMacro == TRANSMITTER){
 		//sending DISC
 		printf("sendng DISC \n");
-    		char* disc = getSupervisionBuf(A_SENDER,C_DISC);
+    char disc[SupervisionSize];
+		getSupervisionBuf(disc,A_SENDER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
 		alarm(3);
@@ -432,10 +420,12 @@ int llclose(int fd){
 		}while(c != C_DISC);
 		//SEND UA
 		printf("sendng UA \n");
-		char* ua = getSupervisionBuf(A_SENDER,C_UA);
+		char ua[SupervisionSize];
+		getSupervisionBuf(ua,A_SENDER,C_UA);
 		setBuffer(&lastBuffer,ua,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
 		alarm(3);
+
 
 	}else{
 		//read disc
@@ -443,7 +433,8 @@ int llclose(int fd){
 	 		c=parseSupervision(fileID,NULL,NULL);
 		}while(c != C_DISC);
 		//sending DISC
-    		char* disc = getSupervisionBuf(A_RECEIVER,C_DISC);
+    char disc[SupervisionSize];
+		getSupervisionBuf(disc,A_RECEIVER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
 		alarm(3);
@@ -463,23 +454,18 @@ int llclose(int fd){
 }
 
 void sendResponse(int fd, char a, char c){
-		char *buf=getSupervisionBuf(a,c);
+		char buf[SupervisionSize];
+		getSupervisionBuf(buf,a,c);
 		sendBytes(fd,  buf, 5);
-		free(buf);
-
-
 }
 
-int llread(int fd, char** buff){
-	char *data;
+int llread(int fd, char* buff){
 	unsigned int length;
-	unsigned char c = parseSupervision(fd,&data,&length);
+	unsigned char c = parseSupervision(fd,buff,&length);
 
 	c >>= 6;
 
-	*buff=data;
-
-	if(data == NULL){//leu mal
+	if(length == -1){//leu mal
 		if(c != ns ){//é repetido
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
@@ -489,7 +475,6 @@ int llread(int fd, char** buff){
 		}
 	}else{//leu bem
 		if(c != ns ){//é repetido
-			free(data);
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
@@ -521,7 +506,9 @@ int llwrite(int fd, char* buffer, int length){
 				break;
 		}
 		unsigned int frameLength = 0;
-		char * frame =  getDataBuf(A, ns, data,len, &frameLength);
+		char frame[MAX_PACKAGE_SIZE];
+		frameLength = getDataBuf(frame,A, ns, data,len);
+		printf("Writing Next DataBuf:\n");
 		debugChar(frame,frameLength);
 
 		while(1){
@@ -530,7 +517,6 @@ int llwrite(int fd, char* buffer, int length){
 			sendLastBuffer(fd, &lastBuffer);
 			alarm(3);
 			//Wait RR
-			printf("Waiting for disc");
 			char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!
 
 			printf("RS %x %x \n" , RS(res), ns);
@@ -544,7 +530,6 @@ int llwrite(int fd, char* buffer, int length){
 				continue;
 			}
 		}
-
 		data += PACKAGE_LENGTH;
 	}
 
