@@ -88,8 +88,9 @@ char * decodeDataPacket(char* packet, unsigned int * bufferLength){
 	*bufferLength = packetSize;
 
 	char * buff = (char*)malloc(sizeof(char) * packetSize);
-	memcpy(buff, packet + 4, packetSize);
-
+	printf("AdressBuffA: %x\n", buff);
+	memcpy(buff, packet + 4, packetSize); //4
+	printf("AdressBuff: %x\n", buff);
 	return buff;
 }
 
@@ -205,7 +206,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	char * data;
 
 	char dataPacket[3+255*2];
-
+	int temporario = 0;
 	unsigned int length2 = 0;
 
 	unsigned char readedTypes = 0;
@@ -365,9 +366,19 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 					length2 = 0;
 					printf("dataPacket[0] %02x \n", dataPacket[0]);
 					data = decodeDataPacket(dataPacket, &length2);
-					memcpy(buffer + bufferIndex, data, length2);
+
+					printf("Adress: %x\n", data);
+
+					debugChar(data,length2);
+					for(temporario=0; temporario< length2; temporario++){
+						buffer[temporario + bufferIndex] = data[temporario];
+					}
+
+					printf("Adress: %x\n", data);
+
+					//memcpy(buffer + bufferIndex, data, length2);
 					printf("B\n");
-					//free(data);
+					free(data);
 					printf("C\n");
 					bufferIndex+=length2;
 					index++;
@@ -490,6 +501,9 @@ void testSendFile(int fd, int side){
 
 
 int main(int argc,char *argv[]){
+
+	mtrace();
+
 	if(argc != 3){
 		printf("Usage: port_number <int> side <char>\n");
 		return -1;
@@ -521,7 +535,6 @@ int main(int argc,char *argv[]){
 		printf("Side must be (sender) 's' or (receiver) 'r' ");
 		return 1;
 	}
-
 
 	llinit(sideMacro);
 

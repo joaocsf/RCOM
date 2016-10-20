@@ -1,6 +1,7 @@
 #ifndef __LINKLAYER_H
 #define __LINKLAYER_H
 
+#include <mcheck.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
