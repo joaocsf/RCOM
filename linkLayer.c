@@ -107,7 +107,7 @@ unsigned int getDataBuf(char * res, char addr, char ns, char * data,unsigned int
 }
 
 void sendBytes(int fd, char* buf, int tamanho){
-	printf("SendBytes Initialized\n");
+	DEBUG("SendBytes Initialized\n");
 	int escrito = 0;
     int offset = 0;
     while( (escrito = write(fd,buf + offset,tamanho)) < tamanho ){
@@ -129,13 +129,8 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 	unsigned int size = (length - 6);
 	unsigned char xor = buffer[4];
 
-	printf("Antes Malloc %d\n", size);
+	
 
-	write(1, "OLA",3);
-	if(res == NULL)
-		printf("CAN'T ALLOC!!!! DAMN SON \n");
-
-	printf("Apos Malloc %d\n", size);
 	int i = 0;
 	for(; i < size; i++){
 		res[i] = buffer[i+4];
@@ -144,7 +139,6 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 			xor ^= buffer[i+4];
 	}
 
-	printf("Verdade? %02x %02x\n", buffer[length - 2], xor);
 
 	if((unsigned char)buffer[length - 2] == (unsigned char)xor)
 		return size;
@@ -160,19 +154,19 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 	unsigned int lengthTemp;
 	  								//Se reader FAC
 	unsigned int index = 0;
-	printf("--------------------------------------------\n");
+	DEBUG("--------------------------------------------\n");
 	while(internal_state != STOP){
 		char readed;
 		read(fd, &readed, 1);
 
 		switch(internal_state){
-			case START:printf("START: %02x \n",readed);
+			case START:DEBUG("START: %02x \n",readed);
 				if(readed == F){
 					internal_state = FLAG_RCV;
 					buf[0] = readed;
 				}
 				break;
-			case FLAG_RCV:printf("FLAG_RCV: %02x \n",readed);
+			case FLAG_RCV:DEBUG("FLAG_RCV: %02x \n",readed);
 				switch(readed){
 					case F: //RETORNAR quando algo nao corresponde ao pertendido.
 						break;
@@ -186,7 +180,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case A_RCV:printf("A_RCV: %02x  \n",readed);
+			case A_RCV:DEBUG("A_RCV: %02x  \n",readed);
 				switch(readed){
 					case F:
 						internal_state = FLAG_RCV;
@@ -208,7 +202,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case C_RCV:printf("C_RCV: %02x \n",readed);
+			case C_RCV:DEBUG("C_RCV: %02x \n",readed);
 				switch(readed){
 					case F:
 						internal_state = FLAG_RCV;
@@ -223,7 +217,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case BCC_OK:printf("BCC_OK: %02x \n",readed);
+			case BCC_OK:DEBUG("BCC_OK: %02x \n",readed);
 				switch(readed){
 					case F:
 						buf[4] = readed;
@@ -236,21 +230,21 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 				}
 				break;
-			case D_RCV:printf("D_RCV: %02x \n",readed);
+			case D_RCV:DEBUG("D_RCV: %02x \n",readed);
 					switch(readed){
 						case F:
 							if(length == NULL)
 								return -1;
 
-							printf("Index: %d\n", index);
+							DEBUG("Index: %d\n", index);
 							buf[index] = readed;
 							index++;
 
-							printf("Index PASSOU!!!: %d\n", index);
+							DEBUG("Index PASSOU!!!: %d\n", index);
 
 							lengthTemp = byteDesStuffing(temp,buf, index);
 							debugChar(temp,lengthTemp);
-							printf("Ja nao passa!!!: %d\n", index);
+							DEBUG("Ja nao passa!!!: %d\n", index);
 
 							*length = getDataFromBuffer(data,temp,lengthTemp);
 
@@ -260,7 +254,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 
 							internal_state=STOP;
 
-							printf("D_RCV: END\n");
+							DEBUG("D_RCV: END\n");
 
 						break;
 						default:
@@ -281,7 +275,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 	if(internal_state != FLAG_RCV){
 		internal_state = START;
 	}
-	printf("------Finalized Supervision \n");
+	DEBUG("------Finalized Supervision \n");
 	alarm(0);
 	return buf[2];
 }
@@ -289,7 +283,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 void timeOut(){
 
 	sendLastBuffer(fileID,&lastBuffer);
-	printf("Alarm\n");
+	DEBUG("Alarm\n");
 	alarm(3);
 }
 
@@ -333,7 +327,7 @@ int initReceiver(){
 int llopen(int porta, unsigned char side){
 
 	if(porta < 0 || porta > 3){
-		printf("Error: port range is [0;3] given: %d \n", porta);
+		DEBUG("Error: port range is [0;3] given: %d \n", porta);
 		return -1;
 	}
     int fd;
@@ -347,7 +341,7 @@ int llopen(int porta, unsigned char side){
 
     fd = open(nomePorta, O_RDWR | O_NOCTTY );
 
-	printf("port %s  %d \n", nomePorta,porta);
+	DEBUG("port %s  %d \n", nomePorta,porta);
 
     if (fd <0) {
 		perror(nomePorta);
@@ -406,7 +400,7 @@ int llclose(int fd){
 
 	if(sideMacro == TRANSMITTER){
 		//sending DISC
-		printf("sendng DISC \n");
+		DEBUG("sendng DISC \n");
     char disc[SupervisionSize];
 		getSupervisionBuf(disc,A_SENDER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
@@ -414,12 +408,12 @@ int llclose(int fd){
 		alarm(3);
 		//read DISC
 		do{
-						printf(" DISC \n");
+						DEBUG(" DISC \n");
 	 		c=parseSupervision(fileID,NULL,NULL);
-			printf("receiving DISC \n");
+			DEBUG("receiving DISC \n");
 		}while(c != C_DISC);
 		//SEND UA
-		printf("sendng UA \n");
+		DEBUG("sendng UA \n");
 		char ua[SupervisionSize];
 		getSupervisionBuf(ua,A_SENDER,C_UA);
 		setBuffer(&lastBuffer,ua,SupervisionSize);
@@ -466,24 +460,24 @@ int llread(int fd, char* buff){
 	c >>= 6;
 
 	if(length == -1){//leu mal
-		printf("#####LEU MAL\n");
+		printf("Leu mal: ");
 		if(c != ns ){//é repetido
-			printf("#####E REPETIDO\n");
+			printf("NS repetido, enviar confirmação(RR) para ler o proximo pacote\n");
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
-			printf("#####NOT REPETIDO\n");
+			printf("NS correto, Enviar rejeição(REJ) para reenviar o pacote atual\n");
 			sendResponse(fd,A,C_REJ(ns));
 			return -1;
 		}
 	}else{//leu bem
-		printf("#####LEU BEM\n");
+		printf("Leu bem: ");
 		if(c != ns ){//é repetido
-			printf("#####E REPETIDO\n");
+			printf("NS repetido, enviar confirmação(RR) para ler o proximo pacote\n");
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
-			printf("#####NOT REPETIDO\n");
+			printf("NS correto, enviar confirmação(RR) para ler o proximo pacote\n");
 			ns = ns ? 0:1;
 			sendResponse(fd,A,C_RR(ns));
 			return length;
@@ -499,18 +493,18 @@ int llwrite(int fd, char* buffer, int length){
 	char *data = buffer;
 	unsigned int maxLen = length/PACKAGE_LENGTH;
 
-	printf("maxLen : %d\n", maxLen);
-	
+	DEBUG("maxLen : %d\n", maxLen);
+
 
 	int i;
 	for(i = 0 ; i < maxLen + 1; i++){
-		printf("Position: %d", (buffer - data));
+		
 		unsigned int len = PACKAGE_LENGTH;
 
 		if( i == maxLen){
 
 			len = length % PACKAGE_LENGTH;
-			printf("len:%d \n",len);
+			DEBUG("len:%d \n",len);
 			
 			if( len == 0)
 				break;
@@ -518,7 +512,7 @@ int llwrite(int fd, char* buffer, int length){
 		unsigned int frameLength = 0;
 		char frame[MAX_PACKAGE_SIZE];
 		frameLength = getDataBuf(frame,A, ns, data,len);
-		printf("Writing Next DataBuf:\n");
+		DEBUG("Writing Next DataBuf:\n");
 		debugChar(frame,frameLength);
 
 		while(1){
@@ -529,14 +523,14 @@ int llwrite(int fd, char* buffer, int length){
 			//Wait RR
 			char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!
 
-			printf("RS %x %x \n" , RS(res), ns);
+			DEBUG("RS %x %x \n" , RS(res), ns);
 
 			if(ns != RS(res)){//proxima trama
 				ns = ns ? 0:1;
-				printf("Ns correto\n");
+				printf("A enviar proxima trama ...\n");
 				break;
 			}else{//resend trama
-				printf("Ns resend\n");
+				printf("A reenviar Trama ...\n");
 				continue;
 			}
 		}
@@ -547,11 +541,11 @@ int llwrite(int fd, char* buffer, int length){
 }
 
 void debugChar(char* bytes, int len){
-	printf("Elements: %d , 0x" , len);
+	DEBUG("Elements: %d , 0x" , len);
 	int i = 0;
 
 	for(;i < len; i++){
-		printf(" %02x ", (unsigned char)bytes[i]);
+		DEBUG(" %02x ", (unsigned char)bytes[i]);
 	}
-	printf("\n");
+	DEBUG("\n");
 }

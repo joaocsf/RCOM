@@ -13,6 +13,13 @@
 #include <signal.h>
 #include <unistd.h>
 
+#define DEBUG_ENABLED 1
+
+#if DEBUG_ENABLED
+	#define DEBUG(...) printf(__VA_ARGS__)
+#else
+	#define DEBUG(...)
+#endif
 
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
