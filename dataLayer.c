@@ -12,7 +12,6 @@
 #define FILE_NAME 0x01
 
 
-#define CONTROLB
 
 #define READING_CONTROL_START 0x00
 #define READING_CONTROL_END 0x10
@@ -50,6 +49,7 @@ void clearControlData(struct controlData * packet){
 
 	packet->length = 0;
 }
+
 //Passas-lhe os dados e o tamanho maximo que ele devolve o packet com o tamanho + o tamanho dos dados OP
 char * createDataPacket(char * data, unsigned int dataLength, unsigned int * buffLength, unsigned int * packetLength){
 

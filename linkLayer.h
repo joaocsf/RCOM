@@ -12,8 +12,9 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <time.h>
 
-#define DEBUG_ENABLED 1
+#define DEBUG_ENABLED 0
 
 #if DEBUG_ENABLED
 	#define DEBUG(...) printf(__VA_ARGS__)
@@ -60,7 +61,7 @@
 
 #define C_REJ(n) ((n << 7) | 0x01)
 
-#define RS(n) (n >>7 )
+#define RS(n) (unsigned char)((unsigned char)n >>7 )
 
 #define PACKAGE_LENGTH 5
 
