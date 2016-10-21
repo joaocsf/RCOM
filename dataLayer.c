@@ -34,6 +34,7 @@ struct controlData{
 	char name[255];
 	unsigned int length;
 };
+void CreateFile(struct controlData data, char* fileData);
 
 struct controlData getControlData(){
 	struct controlData controlData;
@@ -365,7 +366,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 					printf("Adress: %x\n", data);
 
 					memcpy(buffer + bufferIndex, data, length2);
-					printf("C\n");
+					printf("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC %d\n", bufferIndex);
 					bufferIndex+=length2;
 					index++;
 					printf("D\n");
@@ -411,15 +412,51 @@ char * readFile(int fd, struct controlData * controlData, unsigned int * length)
 
 void sendFile(int fd, char* path){
 
+	int file = open(path, O_RDWR);
+
+	struct stat fileStat;
+	if(lstat(path, &fileStat) < 0){
+		printf("Problem using fstat\n");
+	}
+
+
+
+	unsigned int fileSize = fileStat.st_size ;
+
+	printf("SENDING FILE: %s %d\n", path, fileSize);
 	//readFile
 	struct controlData controlData;
+	strcpy(controlData.name, path);
+	controlData.length = fileSize;
+	//char * fileData = "OlaBelhoteTudoBemContigo? EU ca estou bem..... poucos bytes pah!"; //Include StartControl and EndControlData.
+		printf("Ola221323\n");
+	char* fileData = (char*)malloc(sizeof(char) * fileSize);
 
-	char * fileData = "OlaBelhoteTudoBemContigo? EU ca estou bem..... poucos bytes pah!"; //Include StartControl and EndControlData.
+	unsigned int dataWritten = 0;
+	do{
+		unsigned int res = read(file, fileData + dataWritten, fileSize - dataWritten);
+		dataWritten+=res;
+		printf("dataWritten + %d\n", dataWritten);
+	}while(dataWritten < fileSize);
+
+
+
+
+	strcpy(controlData.name, "/home/oem/Desktop/RCOM/RCOM/pinguim2.gif");
+	CreateFile(controlData, fileData);
+	strcpy(controlData.name, path);
+	debugChar(fileData, controlData.length);
+
+	sleep(3);
+
 	char * fileData2 = fileData;
-	memcpy(controlData.name, "Ficheiro Fixe",14);
-	controlData.length = 66;
+
+
+
+	controlData.length = fileSize;
 	unsigned int length = controlData.length;
 	unsigned int size;
+
 	char * controlStart = createControlPacket(START_PACKET,controlData.name,controlData.length,&size);
 
 
@@ -433,7 +470,7 @@ void sendFile(int fd, char* path){
 	do{
 
 		unsigned int packetLength;
-		char * data = createDataPacket(fileData2 + offset, length, &size, &packetLength);
+		char * data = createDataPacket(fileData2 + offset, length-offset, &size, &packetLength);
 
 		offset += packetLength;
 
@@ -479,15 +516,32 @@ void testDataPacket(){
 
 }
 
+void CreateFile(struct controlData data, char* fileData){
+
+	int fd;
+	printf("Creating FILE %s %d \n", data.name, data.length);
+	fd = open(data.name, O_RDWR | O_TRUNC | O_CREAT, S_IRWXU);
+
+	unsigned int dataWritten = 0;
+
+	do{
+		unsigned int res = write(fd,fileData + dataWritten, data.length - dataWritten);
+		dataWritten+=res;
+	}while(dataWritten < data.length);
+
+}
+
 void testSendFile(int fd, int side){
 	printf("######TESTSEINDFILE()\n");
 
 	if(side == TRANSMITTER){
-		sendFile(fd,"A");
+		sendFile(fd,"/home/oem/Desktop/RCOM/RCOM/pinguim.gif");
 	}else{
 		unsigned int size = 0;
 		struct controlData controlData = getControlData();
 		char* file = readFile(fd, &controlData ,&size );
+
+		CreateFile(controlData, file);
 
 		printf("testSendFile: Received: %s", file);
 
@@ -500,25 +554,15 @@ void testSendFile(int fd, int side){
 
 int main(int argc,char *argv[]){
 
-	mtrace();
-
 	if(argc != 3){
 		printf("Usage: port_number <int> side <char>\n");
 		return -1;
 	}
-	testDataPacket();
+	//testDataPacket();
 	char side = argv[2][0];
 
 	int port_number = atoi(argv[1]);
 	unsigned char sideMacro;
-
-	unsigned int size;
-	struct controlData batata;
-	char * data = createControlPacket(START_PACKET,"ola",6,&size);
-
-	decodeControlPacket(data, &batata);
-	printf("FILE INFO: %s , %d\n" , batata.name, batata.length);
-	debugChar(data, size);
 
 	int fileID;
 

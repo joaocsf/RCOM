@@ -144,9 +144,9 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 			xor ^= buffer[i+4];
 	}
 
-	printf("Verdade? %d\n", size);
+	printf("Verdade? %02x %02x\n", buffer[length - 2], xor);
 
-	if(buffer[length - 2] == xor)
+	if((unsigned char)buffer[length - 2] == (unsigned char)xor)
 		return size;
 
 	return -1;
@@ -466,18 +466,24 @@ int llread(int fd, char* buff){
 	c >>= 6;
 
 	if(length == -1){//leu mal
+		printf("#####LEU MAL\n");
 		if(c != ns ){//é repetido
+			printf("#####E REPETIDO\n");
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
+			printf("#####NOT REPETIDO\n");
 			sendResponse(fd,A,C_REJ(ns));
 			return -1;
 		}
 	}else{//leu bem
+		printf("#####LEU BEM\n");
 		if(c != ns ){//é repetido
+			printf("#####E REPETIDO\n");
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
+			printf("#####NOT REPETIDO\n");
 			ns = ns ? 0:1;
 			sendResponse(fd,A,C_RR(ns));
 			return length;
@@ -493,15 +499,19 @@ int llwrite(int fd, char* buffer, int length){
 	char *data = buffer;
 	unsigned int maxLen = length/PACKAGE_LENGTH;
 
+	printf("maxLen : %d\n", maxLen);
+	sleep(3);
+
 	int i;
 	for(i = 0 ; i < maxLen + 1; i++){
-
+		printf("Position: %d", (buffer - data));
 		unsigned int len = PACKAGE_LENGTH;
 
 		if( i == maxLen){
 
 			len = length % PACKAGE_LENGTH;
 			printf("len:%d \n",len);
+			sleep(5);
 			if( len == 0)
 				break;
 		}
