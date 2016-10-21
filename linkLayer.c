@@ -500,7 +500,7 @@ int llwrite(int fd, char* buffer, int length){
 	unsigned int maxLen = length/PACKAGE_LENGTH;
 
 	printf("maxLen : %d\n", maxLen);
-	sleep(3);
+	
 
 	int i;
 	for(i = 0 ; i < maxLen + 1; i++){
@@ -511,7 +511,7 @@ int llwrite(int fd, char* buffer, int length){
 
 			len = length % PACKAGE_LENGTH;
 			printf("len:%d \n",len);
-			sleep(5);
+			
 			if( len == 0)
 				break;
 		}

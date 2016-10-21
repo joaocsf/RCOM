@@ -185,10 +185,10 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	char isStart = 1;
 
 	char * buffer;
-	unsigned int bufferIndex = 0;
-	unsigned char bufferLength = 0;
+	unsigned int bufferIndex = 0;//bufer principal com a data toda
+	unsigned int bufferLength = 0;
 
-	unsigned int currentPacketIndex = 0;
+	unsigned int currentPacketIndex = 0; //index do pacote que esta a ser lido (controlo ou dados)
 
 	unsigned int parameterLength = -1;
 
@@ -199,7 +199,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	char* controlBuffer;
 	char data[MAX_DATA_LENGTH];
 
-	char dataPacket[3+255*2];
+	char dataPacket[MAX_DATA_LENGTH + 4];
 	unsigned int length2 = 0;
 
 	unsigned char readedTypes = 0;
@@ -207,7 +207,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	while(estado != READING_END){
 
 
-		unsigned int index = 0;
+		unsigned int index = 0;//index do temp data
 		printf("Reading nextData:\n");
 		int length = readData(fd, tempData);
 
@@ -429,7 +429,7 @@ void sendFile(int fd, char* path){
 	strcpy(controlData.name, path);
 	controlData.length = fileSize;
 	//char * fileData = "OlaBelhoteTudoBemContigo? EU ca estou bem..... poucos bytes pah!"; //Include StartControl and EndControlData.
-		printf("Ola221323\n");
+		
 	char* fileData = (char*)malloc(sizeof(char) * fileSize);
 
 	unsigned int dataWritten = 0;
@@ -442,12 +442,12 @@ void sendFile(int fd, char* path){
 
 
 
-	strcpy(controlData.name, "/home/oem/Desktop/RCOM/RCOM/pinguim2.gif");
+	strcpy(controlData.name, "./pinguim2.gif");
 	CreateFile(controlData, fileData);
-	strcpy(controlData.name, path);
+	//strcpy(controlData.name, path);
 	debugChar(fileData, controlData.length);
 
-	sleep(3);
+	
 
 	char * fileData2 = fileData;
 
@@ -535,7 +535,7 @@ void testSendFile(int fd, int side){
 	printf("######TESTSEINDFILE()\n");
 
 	if(side == TRANSMITTER){
-		sendFile(fd,"/home/oem/Desktop/RCOM/RCOM/pinguim.gif");
+		sendFile(fd,"./pinguim.gif");
 	}else{
 		unsigned int size = 0;
 		struct controlData controlData = getControlData();
