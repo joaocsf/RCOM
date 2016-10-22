@@ -14,9 +14,19 @@ char internal_state = 0;
 struct termios oldtio;
 unsigned char ns = 0;
 
-unsigned int numberResends=0;
-unsigned int numberReceived=0;
-
+//Variaveis de valorizacao
+//unsigned double long baudRate = 'B38400';// 300 | 1200 | 2400 | 4800 | 9600 | 14400 | 19200 | 28800 | 38400 | 57600 | 115200 | 230400
+unsigned int packageLength = 5;
+unsigned int maxResends = 3;
+unsigned int alarmInterval = 3;
+//variaveis de contagem
+unsigned int numberResends = 0;
+unsigned int numberSends = 0;
+unsigned int numberReceived = 0;
+unsigned int timeOutCount = 0;
+unsigned int receivedREJS = 0;
+unsigned int sentREJS = 0;
+//#Variaveis de valorizacao
 
 void corruptData(char * buffer , unsigned int bufSize);
 
@@ -299,6 +309,7 @@ unsigned char parseSupervision(int fd, char* data, unsigned int* length){
 
 void timeOut(){
 
+	timeOutCount++;
 	sendLastBuffer(fileID,&lastBuffer);
 	DEBUG("Alarm\n");
 	alarm(3);
@@ -414,7 +425,6 @@ int llclose(int fd){
 
 	unsigned char c;
 	printf("Closing connection\n");
-	printf("Number resends: %d Number received: %d\n",numberResends,numberReceived);
 	if(sideMacro == TRANSMITTER){
 		//sending DISC
 		printf("sending DISC \n");
@@ -489,20 +499,20 @@ int llread(int fd, char* buff){
 			return -1;
 		}else{
 			printf("NS correto, Enviar rejeição(REJ) para reenviar o pacote atual\n");
+			sentREJS++;
 			sendResponse(fd,A,C_REJ(ns));
-			numberResends++;
 			return -1;
 		}
 	}else{//leu bem
 		printf("Leu bem: ");
+		numberReceived++;
 		if(c != ns ){//é repetido
 			printf("NS: %d repetido, enviar confirmação(RR) para ler o proximo pacote\n",ns);
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
-			numberReceived++;
 			printf("NS correto, enviar confirmação(RR) para ler o proximo pacote\n");
-			ns = ns ? 0:1;
+			ns = ns ? 0 : 1;
 			sendResponse(fd,A,C_RR(ns));
 			return length;
 		}
@@ -554,6 +564,7 @@ int llwrite(int fd, char* buffer, int length){
 
 		while(1){
 
+			numberSends++;
 			setBuffer(&lastBuffer, frame, frameLength);
 			sendLastBuffer(fd, &lastBuffer);
 
@@ -572,7 +583,8 @@ int llwrite(int fd, char* buffer, int length){
 				break;
 			}else{//resend trama
 				printf("A reenviar Trama ...\n");
-
+				receivedREJS++;
+				numberResends++;
 			}
 		}
 		data += PACKAGE_LENGTH;
@@ -589,4 +601,23 @@ void debugChar(char* bytes, int len){
 		DEBUG(" %02x ", (unsigned char)bytes[i]);
 	}
 	DEBUG("\n");
+}
+
+void writeTransmitterInfo(){
+		printf("\n");
+		printf("-------------------- Trasmitter information --------------------\n");
+		printf("Frames transmited : %u;\n",numberSends);
+		printf("Frames retransmitted : %u;\n",numberResends);
+		printf("REJs received : %u;\n",receivedREJS);
+		printf("Number of timeouts : %u.\n",timeOutCount);
+		return;
+}
+
+void writeReceiverInfo(){
+	printf("\n");
+	printf("-------------------- Receiver information --------------------\n");
+	printf("Frames received : %u;\n",numberReceived);
+	printf("REJs sent : %u;\n",sentREJS);
+	printf("Number of timeouts : %u.\n",timeOutCount);
+	return;
 }

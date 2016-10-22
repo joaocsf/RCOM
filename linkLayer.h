@@ -63,7 +63,7 @@
 
 #define RS(n) (unsigned char)((unsigned char)n >>7 )
 
-#define PACKAGE_LENGTH 5//Variavel
+#define PACKAGE_LENGTH 5
 
 #define MAX_PACKAGE_SIZE (2 + (4 + PACKAGE_LENGTH) * 2)
 #define MAX_PACKAGE_DESTUFFED_SIZE (6 + PACKAGE_LENGTH)
@@ -80,5 +80,9 @@ int llread(int fd, char* buff);
 int llwrite(int fd, char* buffer, int length);
 
 void debugChar(char* bytes, int len);
+
+void writeTransmitterInfo();
+
+void writeReceiverInfo();
 
 #endif

@@ -1,5 +1,3 @@
-target: linkLayer.c dataLayer.c linkLayer.h
+target: linkLayer.h linkLayer.c dataLayer.c
 
 	gcc -o empenho linkLayer.c dataLayer.c -Wall
-
-

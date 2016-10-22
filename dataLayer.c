@@ -289,12 +289,11 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 					break;
 				case READING_CONTROL_FINALIZE: DEBUG("READING_CONTROL_FINALIZE: %02x \n", tempData[index] );
 
-
 					controlSize = currentPacketIndex;
-					
-					bufferLength = fileInfo->length;
 
 					decodeControlPacket(controlBuffer, fileInfo);
+
+					bufferLength = fileInfo->length;
 
 					DEBUG("Debug: %s, %d\n", fileInfo->name, fileInfo->length);
 
@@ -354,22 +353,22 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 				case READING_DATA_FINALIZE:  DEBUG("READING_DATA_FINALIZE: %02x \n", tempData[index] );
 
 					//Funcao que retorna o char* dados ou o apontador para os dados + numero de dados para ler :D
-										
+
 					length2 = decodeDataPacket(data, dataPacket);
 
 
 					memcpy(buffer + bufferIndex, data, length2);
-					
+
 					bufferIndex+=length2;
 					index++;
-					
+
 					if(bufferIndex >= bufferLength){
 						DEBUG("Alterando Estado para ControlEND\n");
 						estado = READING_CONTROL_END;
 					}else
 						estado = READING_DATA;
 
-					
+
 					parameterLength = 0;
 
 					break;
@@ -379,7 +378,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	}/*
 	decodeControlPacket(controlBufferStart, fileInfo);
 	decodeControlPacket(controlBufferEnd, fileInfo);*/
-	
+
 
 
 
@@ -394,7 +393,7 @@ char * readFile(int fd, struct controlData * controlData, unsigned int * length)
 
 	char * res = readPackets(fd, length, controlData);
 
-	
+
 	return res;
 }
 
@@ -417,7 +416,7 @@ void sendFile(int fd, char* path){
 	strcpy(controlData.name, path);
 	controlData.length = fileSize;
 	//char * fileData = "OlaBelhoteTudoBemContigo? EU ca estou bem..... poucos bytes pah!"; //Include StartControl and EndControlData.
-		
+
 	char* fileData = (char*)malloc(sizeof(char) * fileSize);
 
 	unsigned int dataWritten = 0;
@@ -435,7 +434,7 @@ void sendFile(int fd, char* path){
 	//strcpy(controlData.name, path);
 	debugChar(fileData, controlData.length);
 
-	
+
 
 	char * fileData2 = fileData;
 
@@ -539,7 +538,6 @@ void testSendFile(int fd, int side){
 
 }
 
-
 int main(int argc,char *argv[]){
 
 	if(argc != 3){
@@ -570,11 +568,12 @@ int main(int argc,char *argv[]){
 	testSendFile(fileID, sideMacro);
 
 	llclose(fileID);
-
+	if(sideMacro == TRANSMITTER){
+		writeTransmitterInfo();
+	} else {
+		writeReceiverInfo();
+	}
 	DEBUG("\n Done!\n");
-
-
-
 
 	return 0;
 }
