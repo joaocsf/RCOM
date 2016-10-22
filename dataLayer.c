@@ -569,6 +569,8 @@ int main(int argc,char *argv[]){
 
 	testSendFile(fileID, sideMacro);
 
+	llclose(fileID);
+
 	DEBUG("\n Done!\n");
 
 
