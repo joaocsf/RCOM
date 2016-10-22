@@ -14,6 +14,10 @@ char internal_state = 0;
 struct termios oldtio;
 unsigned char ns = 0;
 
+unsigned int numberResends=0;
+unsigned int numberReceived=0;
+
+
 void corruptData(char * buffer , unsigned int bufSize);
 
 void getSupervisionBuf(char * buffer, char address, char control){
@@ -113,7 +117,7 @@ void sendBytes(int fd, char* buf, int tamanho){
 
 	char lixo[MAX_PACKAGE_SIZE];
 	memcpy(lixo,buf,tamanho);
-	corruptData(lixo, tamanho);
+	//corruptData(lixo, tamanho);
 	buf = lixo;
 
     int offset = 0;
@@ -153,7 +157,7 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 	return -1;
 }
 
-char parseSupervision(int fd, char* data, unsigned int* length){
+unsigned char parseSupervision(int fd, char* data, unsigned int* length){
 
 	unsigned int maxSize = 2 + (4 + PACKAGE_LENGTH) * 2;
 	char buf[maxSize];
@@ -231,6 +235,10 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 						internal_state = STOP;
 						break;
 					default:
+
+						if(length == NULL)
+							internal_state = START;
+							
 						internal_state = D_RCV;
 						buf[4] = readed;
 						index = 5;
@@ -240,8 +248,7 @@ char parseSupervision(int fd, char* data, unsigned int* length){
 			case D_RCV:DEBUG("D_RCV: %02x \n",readed);
 					switch(readed){
 						case F:
-							if(length == NULL)
-								return -1;
+				
 
 							DEBUG("Index: %d\n", index);
 							buf[index] = readed;
@@ -364,7 +371,7 @@ int llopen(int porta, unsigned char side){
     }
 
     bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0; //OPOST;
 
@@ -405,24 +412,23 @@ void llinit(char side){
 int llclose(int fd){
 
 	unsigned char c;
-
-
+	printf("Closing connection\n");
+	printf("Number resends: %d Number received: %d\n",numberResends,numberReceived);
 	if(sideMacro == TRANSMITTER){
 		//sending DISC
-		DEBUG("sendng DISC \n");
-    char disc[SupervisionSize];
+		printf("sending DISC \n");
+    	char disc[SupervisionSize];
 		getSupervisionBuf(disc,A_SENDER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
 		alarm(3);
 		//read DISC
 		do{
-						DEBUG(" DISC \n");
 	 		c=parseSupervision(fileID,NULL,NULL);
-			DEBUG("receiving DISC \n");
+			printf("receiving DISC \n");
 		}while(c != C_DISC);
 		//SEND UA
-		DEBUG("sendng UA \n");
+		printf("sending UA \n");
 		char ua[SupervisionSize];
 		getSupervisionBuf(ua,A_SENDER,C_UA);
 		setBuffer(&lastBuffer,ua,SupervisionSize);
@@ -434,9 +440,11 @@ int llclose(int fd){
 		//read disc
 		do{
 	 		c=parseSupervision(fileID,NULL,NULL);
+			printf("receiving DISC \n");
 		}while(c != C_DISC);
 		//sending DISC
-    char disc[SupervisionSize];
+		printf("sending DISC \n");
+   		char disc[SupervisionSize];
 		getSupervisionBuf(disc,A_RECEIVER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
@@ -444,6 +452,7 @@ int llclose(int fd){
 		//read UA
 		do{
 	 		c=parseSupervision(fileID,NULL,NULL);
+			printf("receiving UA \n");		
 		}while(c != C_UA);
 	}
 
@@ -468,6 +477,9 @@ int llread(int fd, char* buff){
 
 	c >>= 6;
 
+	
+	printf("llread: c: %x ns: %x \n" , c, ns);
+
 	if(length == -1){//leu mal
 		printf("Leu mal: ");
 		if(c != ns ){//é repetido
@@ -477,15 +489,17 @@ int llread(int fd, char* buff){
 		}else{
 			printf("NS correto, Enviar rejeição(REJ) para reenviar o pacote atual\n");
 			sendResponse(fd,A,C_REJ(ns));
+			numberResends++;
 			return -1;
 		}
 	}else{//leu bem
 		printf("Leu bem: ");
 		if(c != ns ){//é repetido
-			printf("NS repetido, enviar confirmação(RR) para ler o proximo pacote\n");
+			printf("NS: %d repetido, enviar confirmação(RR) para ler o proximo pacote\n",ns);
 			sendResponse(fd,A,C_RR(ns));
 			return -1;
 		}else{
+			numberReceived++;
 			printf("NS correto, enviar confirmação(RR) para ler o proximo pacote\n");
 			ns = ns ? 0:1;
 			sendResponse(fd,A,C_RR(ns));
@@ -544,9 +558,9 @@ int llwrite(int fd, char* buffer, int length){
 
 			alarm(3);
 			//Wait RR
-			printf("antes do PARSE	\n");
-			char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!			
-			printf("depois do PARSE\n");
+			
+			unsigned char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!			
+			
 
 			printf("RS %x %x \n" , (unsigned char)RS(res), (unsigned char)ns);
 
