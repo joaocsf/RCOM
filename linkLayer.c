@@ -140,7 +140,7 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 	unsigned int size = (length - 6);
 	unsigned char xor = buffer[4];
 
-	
+
 
 	int i = 0;
 	for(; i < size; i++){
@@ -236,19 +236,20 @@ unsigned char parseSupervision(int fd, char* data, unsigned int* length){
 						break;
 					default:
 
-						if(length == NULL)
+						if(length == NULL){
 							internal_state = START;
-							
-						internal_state = D_RCV;
-						buf[4] = readed;
-						index = 5;
+						}else{
+							internal_state = D_RCV;
+							buf[4] = readed;
+							index = 5;
+						}
 						break;
 				}
 				break;
 			case D_RCV:DEBUG("D_RCV: %02x \n",readed);
 					switch(readed){
 						case F:
-				
+
 
 							DEBUG("Index: %d\n", index);
 							buf[index] = readed;
@@ -452,7 +453,7 @@ int llclose(int fd){
 		//read UA
 		do{
 	 		c=parseSupervision(fileID,NULL,NULL);
-			printf("receiving UA \n");		
+			printf("receiving UA \n");
 		}while(c != C_UA);
 	}
 
@@ -477,7 +478,7 @@ int llread(int fd, char* buff){
 
 	c >>= 6;
 
-	
+
 	printf("llread: c: %x ns: %x \n" , c, ns);
 
 	if(length == -1){//leu mal
@@ -510,7 +511,7 @@ int llread(int fd, char* buff){
 }
 
 void corruptData(char * buffer , unsigned int bufSize){
-	
+
 	if(rand() % 100 <= 95){
 		return;
 	}
@@ -534,14 +535,14 @@ int llwrite(int fd, char* buffer, int length){
 
 	int i;
 	for(i = 0 ; i < maxLen + 1; i++){
-		
+
 		unsigned int len = PACKAGE_LENGTH;
 
 		if( i == maxLen){
 
 			len = length % PACKAGE_LENGTH;
 			DEBUG("len:%d \n",len);
-			
+
 			if( len == 0)
 				break;
 		}
@@ -558,20 +559,20 @@ int llwrite(int fd, char* buffer, int length){
 
 			alarm(3);
 			//Wait RR
-			
-			unsigned char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!			
-			
+
+			unsigned char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!
+
 
 			printf("RS %x %x \n" , (unsigned char)RS(res), (unsigned char)ns);
 
 			if((unsigned char) ns != (unsigned char)RS(res)){//proxima trama
-				
+
 				ns = ns ? 0:1;
 				printf("(%d,%d)A enviar proxima trama ...\n", i , (maxLen+1));
 				break;
 			}else{//resend trama
 				printf("A reenviar Trama ...\n");
-				
+
 			}
 		}
 		data += PACKAGE_LENGTH;

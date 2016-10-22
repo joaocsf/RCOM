@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <time.h>
 
-#define DEBUG_ENABLED 0
+#define DEBUG_ENABLED 1
 
 #if DEBUG_ENABLED
 	#define DEBUG(...) printf(__VA_ARGS__)
