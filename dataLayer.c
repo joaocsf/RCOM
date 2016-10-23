@@ -29,6 +29,12 @@
 #define READING_DATA_PACKETS 0x24
 #define READING_DATA_FINALIZE 0x25
 
+unsigned int _user_baudrate = 8;
+unsigned int _packageLength = 5;
+unsigned int _maxResends = 3;
+unsigned int _alarmInterval = 3;
+unsigned int _max_package_size;
+unsigned int _max_package_destuffed_size;
 
 struct controlData{
 	char name[255];
@@ -204,7 +210,7 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 	unsigned int length2 = 0;
 
 	unsigned char readedTypes = 0;//para saber qual os  T do pacote de controlo foram lidos
-	char tempData[PACKAGE_LENGTH];//pacotes lidos no llread com packet_length de dados atualmente 5
+	char tempData[_packageLength];//pacotes lidos no llread com packet_length de dados atualmente 5
 	while(estado != READING_END){
 
 
@@ -538,12 +544,42 @@ void testSendFile(int fd, int side){
 
 }
 
+void setUpVariables(){
+	_max_package_size = (2 + (4 + _packageLength) * 2);
+	_max_package_destuffed_size = (6 + _packageLength);
+	initLastBuffer();
+}
+
+void readUserVariables(){
+
+	printf("Select your BAUDRATE from 0 to 11 : ");
+	scanf("%u",&_user_baudrate);
+	while(1){
+		if(_user_baudrate >= 0 && _user_baudrate <= 11){
+			break;
+		}
+		printf("Invalid BAUDRATE please input a number between 0 and 11\n");
+		printf("Select your BAUDRATE from 0 to 11 : ");
+		scanf("%u",&_user_baudrate);
+	}
+	printf("Define max package length : ");
+	scanf("%u",&_packageLength);
+	setUpVariables();
+	printf("Define max number of resends : ");
+	scanf("%u",&_maxResends);
+	printf("Define alarm interval : ");
+	scanf("%u",&_alarmInterval);
+
+}
+
 int main(int argc,char *argv[]){
 
 	if(argc != 3){
 		DEBUG("Usage: port_number <int> side <char>\n");
 		return -1;
 	}
+
+	readUserVariables();
 	//testDataPacket();
 	char side = argv[2][0];
 
@@ -559,7 +595,7 @@ int main(int argc,char *argv[]){
 		fileID = llopen(port_number, RECEIVER);
 		sideMacro=RECEIVER;
 	}else{
-		DEBUG("Side must be (sender) 's' or (receiver) 'r' ");
+		DEBUG("Side must be (sender) 's' or (receiver) 'r' \n");
 		return 1;
 	}
 
@@ -577,3 +613,4 @@ int main(int argc,char *argv[]){
 
 	return 0;
 }
+

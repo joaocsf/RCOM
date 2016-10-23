@@ -63,11 +63,20 @@
 
 #define RS(n) (unsigned char)((unsigned char)n >>7 )
 
-#define PACKAGE_LENGTH 5
+//#define PACKAGE_LENGTH 5
 
-#define MAX_PACKAGE_SIZE (2 + (4 + PACKAGE_LENGTH) * 2)
-#define MAX_PACKAGE_DESTUFFED_SIZE (6 + PACKAGE_LENGTH)
+//#define MAX_PACKAGE_SIZE (2 + (4 + PACKAGE_LENGTH) * 2)
+//#define MAX_PACKAGE_DESTUFFED_SIZE (6 + PACKAGE_LENGTH)
 #define SupervisionSize 5
+
+extern unsigned int _user_baudrate;
+extern unsigned int _packageLength;
+extern unsigned int _maxResends;
+extern unsigned int _alarmInterval;
+extern unsigned int _max_package_size;
+extern unsigned int _max_package_destuffed_size;
+
+void initLastBuffer();
 
 void llinit(char side);
 
@@ -86,3 +95,4 @@ void writeTransmitterInfo();
 void writeReceiverInfo();
 
 #endif
+

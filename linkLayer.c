@@ -1,12 +1,6 @@
 /*Non-Canonical Input Processing*/
 #include "linkLayer.h"
 
-
-struct buffer{
-	char buffer[MAX_PACKAGE_SIZE];
-	int bufSize;
-} lastBuffer;
-
 int fileID;
 unsigned int sideMacro;
 char internal_state = 0;
@@ -15,10 +9,13 @@ struct termios oldtio;
 unsigned char ns = 0;
 
 //Variaveis de valorizacao
-//unsigned double long baudRate = 'B38400';// 300 | 1200 | 2400 | 4800 | 9600 | 14400 | 19200 | 28800 | 38400 | 57600 | 115200 | 230400
-unsigned int packageLength = 5;
-unsigned int maxResends = 3;
-unsigned int alarmInterval = 3;
+unsigned int _max_package_size;
+unsigned int _max_package_destuffed_size;
+unsigned int _user_baudrate;
+unsigned int _packageLength;
+unsigned int _maxResends;
+unsigned int _alarmInterval;
+unsigned int currentResends = 0;
 //variaveis de contagem
 unsigned int numberResends = 0;
 unsigned int numberSends = 0;
@@ -27,6 +24,11 @@ unsigned int timeOutCount = 0;
 unsigned int receivedREJS = 0;
 unsigned int sentREJS = 0;
 //#Variaveis de valorizacao
+
+struct buffer{
+	char* buffer;
+	int bufSize;
+} lastBuffer;
 
 void corruptData(char * buffer , unsigned int bufSize);
 
@@ -86,14 +88,14 @@ unsigned int byteStuffing(char * res, char * buf,unsigned int length, int stuffi
 	}
 	return lengthR;
 }
-//	char res[MAX_PACKAGE_SIZE];
+
 unsigned int getDataBuf(char * res, char addr, char ns, char * data,unsigned int length){
 
-	int dataLength = (length < PACKAGE_LENGTH)? length : PACKAGE_LENGTH;
+	int dataLength = (length < _packageLength)? length : _packageLength;
 
 	int totalLength = 5 + dataLength + 1;
 
-	char buff[MAX_PACKAGE_DESTUFFED_SIZE];
+	char buff[_max_package_destuffed_size];
 
 	buff[0] = F;
 	buff[1] = addr;
@@ -125,9 +127,9 @@ void sendBytes(int fd, char* buf, int tamanho){
 	DEBUG("SendBytes Initialized\n");
 	int escrito = 0;
 
-	char lixo[MAX_PACKAGE_SIZE];
+	char lixo[_max_package_size];
 	memcpy(lixo,buf,tamanho);
-	//corruptData(lixo, tamanho);
+	corruptData(lixo, tamanho);
 	buf = lixo;
 
     int offset = 0;
@@ -169,9 +171,9 @@ unsigned int getDataFromBuffer(char* res, char * buffer, unsigned int length){
 
 unsigned char parseSupervision(int fd, char* data, unsigned int* length){
 
-	unsigned int maxSize = 2 + (4 + PACKAGE_LENGTH) * 2;
+	unsigned int maxSize = 2 + (4 + _packageLength) * 2;
 	char buf[maxSize];
-	char temp[MAX_PACKAGE_DESTUFFED_SIZE];
+	char temp[_max_package_destuffed_size];
 	unsigned int lengthTemp;
 	  								//Se reader FAC
 	unsigned int index = 0;
@@ -304,6 +306,7 @@ unsigned char parseSupervision(int fd, char* data, unsigned int* length){
 	}
 	DEBUG("------Finalized Supervision \n");
 	alarm(0);
+	currentResends = 0;
 	return buf[2];
 }
 
@@ -312,7 +315,11 @@ void timeOut(){
 	timeOutCount++;
 	sendLastBuffer(fileID,&lastBuffer);
 	DEBUG("Alarm\n");
-	alarm(3);
+	currentResends++;
+	if(currentResends == _maxResends){
+		exit(-1);
+	}
+	alarm(_alarmInterval);
 }
 
 
@@ -322,7 +329,7 @@ int initTransmitter(){
 
 	setBuffer(&lastBuffer, bufToSend , SupervisionSize);
 	sendLastBuffer(fileID,&lastBuffer);
-	alarm(3);
+	alarm(_alarmInterval);
 
 	unsigned char content;
   	do{
@@ -383,7 +390,47 @@ int llopen(int porta, unsigned char side){
     }
 
     bzero(&newtio, sizeof(newtio));
-    newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+	switch(_user_baudrate){
+		case 0:
+			newtio.c_cflag = B300 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 1:
+			newtio.c_cflag = B1200 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 2:
+			newtio.c_cflag = B2400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 3:
+			newtio.c_cflag = B4800 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 4:
+			newtio.c_cflag = B9600 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 5:
+			//newtio.c_cflag = B14400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		//break;
+		case 6:
+			newtio.c_cflag = B19200 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 7:
+			//newtio.c_cflag = B28800 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		//break;
+		case 8:
+			newtio.c_cflag = B38400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 9:
+			newtio.c_cflag = B57600 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 10:
+			newtio.c_cflag = B115200 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		case 11:
+			newtio.c_cflag = B230400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+		default:
+			newtio.c_cflag = B38400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		break;
+	}
     newtio.c_iflag = IGNPAR;
     newtio.c_oflag = 0; //OPOST;
 
@@ -432,7 +479,7 @@ int llclose(int fd){
 		getSupervisionBuf(disc,A_SENDER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
-		alarm(3);
+		alarm(_alarmInterval);
 		//read DISC
 		do{
 	 		c=parseSupervision(fileID,NULL,NULL);
@@ -444,7 +491,7 @@ int llclose(int fd){
 		getSupervisionBuf(ua,A_SENDER,C_UA);
 		setBuffer(&lastBuffer,ua,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
-		alarm(3);
+		alarm(_alarmInterval);
 
 
 	}else{
@@ -459,10 +506,12 @@ int llclose(int fd){
 		getSupervisionBuf(disc,A_RECEIVER,C_DISC);
 		setBuffer(&lastBuffer,disc,SupervisionSize);
 		sendLastBuffer(fileID,&lastBuffer);
-		alarm(3);
+		alarm(_alarmInterval);
 		//read UA
 		do{
 	 		c=parseSupervision(fileID,NULL,NULL);
+			if(c==C_DISC)
+				alarm(_alarmInterval);
 			printf("receiving UA \n");
 		}while(c != C_UA);
 	}
@@ -522,14 +571,14 @@ int llread(int fd, char* buff){
 
 void corruptData(char * buffer , unsigned int bufSize){
 
-	if(rand() % 100 <= 95){
+	if(rand() % 1000 <= 990){
 		return;
 	}
 	printf("^^^^^^^^^Corrupting DATA!^^^^^^^^^\n");
 	int i;
 	for(i=0; i< bufSize;i++){
-		if(i>5)
-			buffer[i] ^= (unsigned char)rand();
+		if(rand()%3 == 0)
+			buffer[i] = (unsigned char)rand();
 	}
 
 
@@ -538,7 +587,7 @@ void corruptData(char * buffer , unsigned int bufSize){
 int llwrite(int fd, char* buffer, int length){
 
 	char *data = buffer;
-	unsigned int maxLen = length/PACKAGE_LENGTH;
+	unsigned int maxLen = length/_packageLength;
 
 	DEBUG("maxLen : %d\n", maxLen);
 
@@ -546,18 +595,18 @@ int llwrite(int fd, char* buffer, int length){
 	int i;
 	for(i = 0 ; i < maxLen + 1; i++){
 
-		unsigned int len = PACKAGE_LENGTH;
+		unsigned int len = _packageLength;
 
 		if( i == maxLen){
 
-			len = length % PACKAGE_LENGTH;
+			len = length % _packageLength;
 			DEBUG("len:%d \n",len);
 
 			if( len == 0)
 				break;
 		}
 		unsigned int frameLength = 0;
-		char frame[MAX_PACKAGE_SIZE];
+		char frame[_max_package_size];
 		frameLength = getDataBuf(frame,A, ns, data,len);
 		DEBUG("Writing Next DataBuf:\n");
 		debugChar(frame,frameLength);
@@ -568,7 +617,7 @@ int llwrite(int fd, char* buffer, int length){
 			setBuffer(&lastBuffer, frame, frameLength);
 			sendLastBuffer(fd, &lastBuffer);
 
-			alarm(3);
+			alarm(_alarmInterval);
 			//Wait RR
 
 			unsigned char res = parseSupervision(fd, NULL, NULL);//verificar se o C é valido!
@@ -587,7 +636,7 @@ int llwrite(int fd, char* buffer, int length){
 				numberResends++;
 			}
 		}
-		data += PACKAGE_LENGTH;
+		data += _packageLength;
 	}
 
 	return 0;
@@ -601,6 +650,11 @@ void debugChar(char* bytes, int len){
 		DEBUG(" %02x ", (unsigned char)bytes[i]);
 	}
 	DEBUG("\n");
+}
+
+void initLastBuffer(){
+	lastBuffer.buffer = (char *)malloc(sizeof(char) * _max_package_size);
+ 	lastBuffer.bufSize = 0;
 }
 
 void writeTransmitterInfo(){
@@ -621,3 +675,4 @@ void writeReceiverInfo(){
 	printf("Number of timeouts : %u.\n",timeOutCount);
 	return;
 }
+
