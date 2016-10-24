@@ -287,8 +287,10 @@ char* readPackets(int fd, unsigned int* buffLength, struct controlData * fileInf
 								DEBUG("Changing state to READING_CONTROL_FINALIZE \n");
 								index--;
 								estado = READING_CONTROL_FINALIZE;
-							}else
+							}else{
 								estado = READING_END;
+								index = length;
+							}
 						}else
 							estado = READING_CONTROL_T;
 					}
@@ -613,4 +615,3 @@ int main(int argc,char *argv[]){
 
 	return 0;
 }
-
