@@ -30,6 +30,8 @@ struct buffer{
 	int bufSize;
 } lastBuffer;
 
+void sendResponse(int fd, char a, char c);
+
 void corruptData(char * buffer , unsigned int bufSize);
 
 void getSupervisionBuf(char * buffer, char address, char control){
@@ -129,7 +131,7 @@ void sendBytes(int fd, char* buf, int tamanho){
 
 	char lixo[_max_package_size];
 	memcpy(lixo,buf,tamanho);
-	corruptData(lixo, tamanho);
+	//corruptData(lixo, tamanho);
 	buf = lixo;
 
     int offset = 0;
@@ -314,7 +316,7 @@ void timeOut(){
 
 	timeOutCount++;
 	sendLastBuffer(fileID,&lastBuffer);
-	DEBUG("Alarm\n");
+	printf("Alarm\n");
 	currentResends++;
 	if(currentResends == _maxResends){
 		exit(-1);
@@ -425,8 +427,8 @@ int llopen(int porta, unsigned char side){
 			newtio.c_cflag = B115200 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
 		break;
 		case 11:
-			newtio.c_cflag = B230400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
-		break;
+			//newtio.c_cflag = B230400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
+		//break;
 		default:
 			newtio.c_cflag = B38400 | CS8 | CLOCAL | CREAD;//BAUDRATE para variavel
 		break;
@@ -487,12 +489,15 @@ int llclose(int fd){
 		}while(c != C_DISC);
 		//SEND UA
 		printf("sending UA \n");
-		char ua[SupervisionSize];
-		getSupervisionBuf(ua,A_SENDER,C_UA);
-		setBuffer(&lastBuffer,ua,SupervisionSize);
-		sendLastBuffer(fileID,&lastBuffer);
-		alarm(_alarmInterval);
-
+	
+		sendResponse(fileID, A_SENDER, C_UA); 
+		sleep(2);
+		//getSupervisionBuf(ua,A_SENDER,C_UA);
+		//setBuffer(&lastBuffer,ua,SupervisionSize);
+		//sendLastBuffer(fileID,&lastBuffer);
+		//alarm(_alarmInterval);
+		//printf("ola");
+		//debugChar(ua,SupervisionSize);
 
 	}else{
 		//read disc
@@ -675,4 +680,3 @@ void writeReceiverInfo(){
 	printf("Number of timeouts : %u.\n",timeOutCount);
 	return;
 }
-
