@@ -174,6 +174,24 @@ char * transformHostName(char * name){
 
 
 
+/*Comunicacao por ftp:
+  enviar user:
+                USER usrname
+                  Receber resposta
+                PASS password
+                  Receber resposta
+                CWD diretorio
+                  Receber resposta
+                GET ficheiro
+                  Receber ficheiro
+                  [Loop enquanto receber read* retorna]
+                    read -1 entao merdou.
+                QUIT fechar
+
+
+
+*/
+
 int main(int argc, char** argv){
 
 	int	sockfd;
@@ -197,6 +215,7 @@ int main(int argc, char** argv){
 	bytes = write(sockfd, buf, strlen(buf));
 	printf("Bytes escritos %d\n", bytes);
   /* */
+
 
 	close(sockfd);
 	exit(0);
