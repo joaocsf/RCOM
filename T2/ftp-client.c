@@ -12,8 +12,7 @@
 #include <strings.h>
 #include <string.h>
 
-#define SERVER_PORT 6000
-
+#define DEFAULT_PORT 6000
 #define PARSE_DOUBLESLASH 0
 #define PARSE_DOUBLESLASH 0
 
@@ -22,6 +21,9 @@ struct linkInfo{
   char path[4048];
   char usr[4048];
   char pw[4048];
+  char file[4048];
+  unsigned short port;
+
 };
 
 /*Method to parse username and passwrod from an ftp link!*/
@@ -30,20 +32,23 @@ void parseUserData(char * link,unsigned int size, struct linkInfo * usrInfo){
   char * tmp;
   int n1, nm, n2;
   n1 = nm = n2 = 0;
-
+  unsigned int slash = 0;
   int i = 0;
   for(; i < size; i ++){
-    if(link[i]=='[')
-      n1 = i;
-    else if(link[i]==':')
-      nm = i;
-    else if(link[i]=='@'){
-      n2 = i;
-      break;
-    }
+    if(link[i] == '/')
+      slash ++;
+    if(slash)
+      if(link[i]=='/')
+        n1 = i;
+      else if(link[i]==':')
+        nm = i;
+      else if(link[i]=='@'){
+        n2 = i;
+        break;
+      }
   }
 
-  if(n1 == n2){
+  if(n1 >= n2){
     usrInfo->usr[0] = '\0';
     usrInfo->pw[0] = '\0';
     return;
@@ -54,15 +59,42 @@ void parseUserData(char * link,unsigned int size, struct linkInfo * usrInfo){
   usrInfo->usr[nm - n1] = '\0';
   usrInfo->pw[n2 - nm] = '\0';
 }
+/*Method to parse the port and host*/
+void parseHostPath(char* host, unsigned int size, struct linkInfo* info){
+  int i = 0;
+  int med = -1;
+  char porta[25];
+
+  for(; i < size; i++)
+    if(host[i] == ':'){
+        med = i;
+        break;
+    }
+
+  if(med < 0){
+    info->port = DEFAULT_PORT;
+    return;
+  }
+
+  info->host[med] = '\0';
+
+  memcpy(porta, host + med + 1, size - med );
+  porta[size - med] = '\0';
+
+  info->port = atoi(porta);
+}
+
 /*Method to parse hostname an ftp link beware call parseUserData before this one!!*/
 void parseHostData(char * link, unsigned int size, struct linkInfo* info){
   unsigned char hasPw = info->usr[0] != '\0';
   int n1,n2;
   n1 = n2 = 0;
   int i = 0;
+
+
   if(hasPw){
     for(; i < size; i++){
-      if(link[i]==']')
+      if(link[i]=='@')
         n1 = i;
       if(link[i]=='/' && n1 != 0){
         n2 = i;
@@ -70,6 +102,7 @@ void parseHostData(char * link, unsigned int size, struct linkInfo* info){
       }
     }
   }else{
+    memcpy(info->usr, (char*)"anonymous", 10);
     int slash = 0;
     for(;i < size; i++){
       if(link[i] == '/')
@@ -89,7 +122,10 @@ void parseHostData(char * link, unsigned int size, struct linkInfo* info){
     }
   }
   memcpy(info->host, link + n1 + 1, n2 - n1 - 1);
+
   info->host[n2 - n1] = '\0';
+
+  parseHostPath(info->host,n2-n1, info);
 }
 /*Method to parse path an ftp link beware call parseUserData before this one!!*/
 void parsePathData(char * link, unsigned int size, struct linkInfo* info){
@@ -110,6 +146,24 @@ void parsePathData(char * link, unsigned int size, struct linkInfo* info){
 
   memcpy(info->path, link + n, size - n);
   info->path[size-n + 1] = '\0';
+
+  unsigned int file = 0;
+  unsigned int pSize = size-n;
+  i = size-n;
+  for(; i > -1; i--){
+    if(info->path[i] == '/'){
+      file = i;
+      break;
+    }
+  }
+
+  memcpy(info->file, info->path + file + 1, pSize - file);
+
+  info->path[file + 1] = '\0';
+  info->file[pSize-file + 1];
+
+
+
 }
 
 
@@ -119,13 +173,12 @@ void parseLink(char * link, struct linkInfo* info){
   int i = 0;
 
   unsigned char iState;
-
   parseUserData(link, length, info);
   parseHostData(link, length, info);
   parsePathData(link, length, info);
 
-  printf("Link Given: %s\nUsr:%s\nPw:%s\nHost:%s\nPath:%s\n",
-          link , info->usr, info->pw, info->host, info->path);
+  printf("Link Given: %s\nUsr:%s\nPw:%s\nHost:%s\nPort:%d\nPath:%s\nFile:%s\n",
+          link , info->usr, info->pw, info->host, info->port, info->path, info->file);
 
 }
 
@@ -172,8 +225,6 @@ char * transformHostName(char * name){
   return addr;
 }
 
-
-
 /*Comunicacao por ftp:
   enviar user:
                 USER usrname
@@ -188,9 +239,15 @@ char * transformHostName(char * name){
                     read -1 entao merdou.
                 QUIT fechar
 
-
-
 */
+
+void test_ipParser(char * str){
+  printf("\n[Testing]\n[%s]\n", str);
+  struct linkInfo connectionInfo;
+  parseLink(str, &connectionInfo);
+  char* address = transformHostName(connectionInfo.host);
+
+}
 
 int main(int argc, char** argv){
 
@@ -199,9 +256,14 @@ int main(int argc, char** argv){
 	char	buf[2];
   unsigned short port = 21;
 	int	bytes;
-
+  test_ipParser("ftp://user:password@fe.up.pt:34/path/file.txt");
+  test_ipParser("ftp://user:password@fe.up.pt/path/file.txt");
+  test_ipParser("ftp://fe.up.pt/path/file2.txt");
+  test_ipParser("ftp://fe.up.pt:870/path/file2.txt");
+  test_ipParser("ftp://fe.up.pt:870/file2.txt");
   if(argc != 2){
-    printf("Invalid Arguments!\nUsage: %s <URL>", argv[0]);
+    printf("Invalid Arguments!\nUsage: %s <URL>\n", argv[0]);
+    return -1;
   }
   struct linkInfo connectionInfo;
 
