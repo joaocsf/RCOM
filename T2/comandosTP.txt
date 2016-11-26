@@ -1,0 +1,93 @@
+Global
+/etc/init.d/networking restart /*restart*/
+echo 0 > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts /*para dar enable aos broadcasts*/
+echo 1 > /proc/sys/net/ipv4/ip_forward /*para permitir ip forward nas sub redes*/
+
+/*#!bin/bash*/
+chmod +x <nome-do-ficheiro>
+
+/*Guardar a configuracao do switch e do router*/
+copy running-config flash:<turma-nome1-nome2-nome3>
+
+tux1
+ifconfig eth0 up
+ifconfig eth0 172.16.60.1/24
+route add -net 172.16.61.0/24 gw 172.16.60.254
+route add default gw 172.16.60.254/24
+
+tux2
+ifconfig eth0 up
+ifconfig eth0 172.16.61.1/24
+route add -net 172.16.60.0/24 gw 172.16.61.253
+route add default gw 172.16.61.254/24
+
+/*Experiencia 4 ponto 4*/
+echo 0 > /proc/sys/net/ipv4/conf/eth0/accept_redirects
+echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects
+
+tux4
+ifconfig eth0 up
+ifconfig eth0 172.16.60.254/24
+route add default gw 172.16.61.254/24
+
+ifconfig eth1 up
+ifconfig eth1 172.16.61.253/24
+route add default gw 172.16.61.254/24
+
+
+/****SWITCH****/
+/*Criar a virtual lan id 60*/
+configure terminal
+vlan 60
+end
+show vlan id 60
+
+/*Criar a virtual lan id 61*/
+configure terminal
+vlan 61
+end
+show vlan id 61
+
+/*Apagar virtual lan*/
+configure terminal
+no vlan 60
+end
+show vlan id 60
+
+/*Adicionar a porta 1 a sub rede id 60*/
+configure terminal
+interface fastethernet 0/1 /*porta*/
+switchport mode access
+switchport access vlan 60
+end
+show running-config interface fastethernet 0/1
+show interfaces fastethernet 0/1 switchport
+
+/****ROUTER****/
+
+conf t
+interface gigabitethernet 0/0
+ip address 192.168.12.2 255.255.255.0/0
+no shutdown
+exit
+show interface gigabitethernet 0/0
+
+/*Rota para a rede 172.16.60.0*/
+route add -net 172.16.60.0/24 gw 172.16.61.253 /*Nao esta em comando do router*/
+
+/*Definir a rota estatica*/
+ip route 255.255.255.0 [ip-address]
+
+/****RESTART****/
+
+-> Switch 
+del flash:vlan.dat
+copy flash:tux6-clean startup-config /*substituir "tux6-clean" pelo nosso ficheiro*/
+reload
+-> Router
+copy flash:tux6-clean startup-config /*substituir "tux6-clean" pelo nosso ficheiro*/
+reload
+-> Tux
+updateimage
+/etc/init.d/networking restart
+
