@@ -240,12 +240,67 @@ char * transformHostName(char * name){
                 QUIT fechar
 
 */
-
 void test_ipParser(char * str){
   printf("\n[Testing]\n[%s]\n", str);
   struct linkInfo connectionInfo;
   parseLink(str, &connectionInfo);
   char* address = transformHostName(connectionInfo.host);
+
+}
+
+void ftp_error(char * msg){
+  printf("Error!: %s", msg);
+  exit(-1);
+}
+
+int ftp_send_cmd(int fd, char * buf, unsigned int size){
+  int sent = 0;
+  if((sent = send(fd,buf,size,0)) < 0){
+    perror("send");
+    return -1;
+  }
+  return sent;
+}
+/*Method to receive the status of the last ftp call*/
+int ftp_receive_status(int fd){
+
+  int status;
+
+  if(recv(fd, &status, sizeof(int),0) < 1){
+    perror("Recv");
+    return -1;
+  }
+  return status;
+}
+
+unsigned int ftp_cmd(char* buf, char* cmd, char* append){
+  unsigned int cmdLen = strlen(cmd);
+  unsigned int appendLen = strlen(append);
+
+  memcpy(buf,cmd, cmdLen);
+  memcpy(buf + cmdLen ,append, appendLen + 1);
+
+  return cmdLen + appendLen + 1;
+}
+
+void ftp_login(int fd, char* usr, char* pw){
+  char buff[4028];
+
+  unsigned int size = 0;
+
+  size = ftp_cmd(buff, "USER ", usr);
+  if(ftp_send_cmd(fd, buff, size) < 0)
+    ftp_error("Error Sending USER Command!");
+
+  if(ftp_receive_status(fd) < 1)
+    ftp_error("Error Receving USER confirmation!");
+
+  size = ftp_cmd(buff, "PASS ", pw);
+  if(ftp_send_cmd(fd, buff, size) < 0)
+    ftp_error("Error Sending PASS Command!");
+
+  if(ftp_receive_status(fd) < 1)
+    ftp_error("Error Receving PASS confirmation!");
 
 }
 
