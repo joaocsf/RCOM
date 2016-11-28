@@ -91,3 +91,6 @@ reload
 updateimage
 /etc/init.d/networking restart
 
+
+switch and router config file - t1-david-joao-jose
+
