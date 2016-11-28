@@ -1,0 +1,8 @@
+/***Switch***/
+del flash:vlan.dat
+copy flash:t1-david-joao-jose startup-config
+reload
+
+/***Router***/
+copy flash:t1-david-joao-jose startup-config
+reload

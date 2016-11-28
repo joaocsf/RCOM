@@ -13,13 +13,13 @@ tux1
 ifconfig eth0 up
 ifconfig eth0 172.16.60.1/24
 route add -net 172.16.61.0/24 gw 172.16.60.254
-route add default gw 172.16.60.254/24
+route add default gw 172.16.60.254
 
 tux2
 ifconfig eth0 up
 ifconfig eth0 172.16.61.1/24
 route add -net 172.16.60.0/24 gw 172.16.61.253
-route add default gw 172.16.61.254/24
+route add default gw 172.16.61.254
 
 /*Experiencia 4 ponto 4*/
 echo 0 > /proc/sys/net/ipv4/conf/eth0/accept_redirects
@@ -28,11 +28,11 @@ echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects
 tux4
 ifconfig eth0 up
 ifconfig eth0 172.16.60.254/24
-route add default gw 172.16.61.254/24
+route add default gw 172.16.61.254
 
 ifconfig eth1 up
 ifconfig eth1 172.16.61.253/24
-route add default gw 172.16.61.254/24
+route add default gw 172.16.61.254
 
 
 /****SWITCH****/
@@ -60,17 +60,17 @@ interface fastethernet 0/1 /*porta*/
 switchport mode access
 switchport access vlan 60
 end
-show running-config interface fastethernet 0/1
-show interfaces fastethernet 0/1 switchport
+show running-config interface fastethernet 0/1 /*porta*/
+show interfaces fastethernet 0/1 switchport /*porta*/
 
 /****ROUTER****/
 
 conf t
-interface gigabitethernet 0/0
-ip address 192.168.12.2 255.255.255.0/0
+interface gigabitethernet 0/0 /*porta*/
+ip address 192.168.12.2 255.255.255.0
 no shutdown
 exit
-show interface gigabitethernet 0/0
+show interface gigabitethernet 0/0 /*porta*/
 
 /*Rota para a rede 172.16.60.0*/
 route add -net 172.16.60.0/24 gw 172.16.61.253 /*Nao esta em comando do router*/
@@ -80,7 +80,7 @@ ip route 255.255.255.0 [ip-address]
 
 /****RESTART****/
 
--> Switch 
+-> Switch
 del flash:vlan.dat
 copy flash:tux6-clean startup-config /*substituir "tux6-clean" pelo nosso ficheiro*/
 reload
@@ -93,4 +93,3 @@ updateimage
 
 
 switch and router config file - t1-david-joao-jose
-
