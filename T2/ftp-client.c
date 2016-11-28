@@ -380,11 +380,20 @@ int ftp_setPASV(int fd){
 }
 
 void ftp_getFile(int fd, char * file){
-  char buff[20028];
+  unsigned char buff[20028];
   unsigned int fd2 = ftp_setPASV(fd);
 
   printf("Get File\n");
   unsigned int size = 0;
+
+
+  size = ftp_cmd(buff, "TYPE I", "");
+  if(ftp_send_cmd(fd, buff, size) < 0)
+    ftp_error("Error Sending RETR Command!");
+
+  if(ftp_receive_status(fd) < 1)
+    ftp_error("Error Receving RETR confirmation!");
+
 
   size = ftp_cmd(buff, "RETR ", file);
   if(ftp_send_cmd(fd, buff, size) < 0)
