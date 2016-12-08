@@ -14,7 +14,7 @@
 #include <strings.h>
 #include <string.h>
 
-#define DEFAULT_PORT 6000
+#define DEFAULT_PORT 21
 #define PARSE_DOUBLESLASH 0
 #define PARSE_DOUBLESLASH 0
 
