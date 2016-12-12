@@ -290,8 +290,10 @@ int ftp_receive_status(int fd){
     char* line = strtok((char *)status, "\n");
     char end = 0;
     while(line != NULL){
-      if(line[0] >= '1' && line[0] <= '5' && line[3] ==' ')
-        end = 1;
+    	if(strlen(line) > 5)
+    		if(line[0] >= '1' && line[0] <= '5' && line[3] ==' ')
+          end = 1;
+
       line = strtok(NULL, "\n");
     }
 
@@ -306,16 +308,20 @@ int ftp_receive_status(int fd){
 unsigned int ftp_cmd(char* buf, char* cmd, char* append){
   unsigned int cmdLen = strlen(cmd);
   unsigned int appendLen = strlen(append);
+  //printf("%d\n",cmdLen);
+  //printData(append, appendLen );
+  //printData(cmd, cmdLen );
+
 
   memcpy(buf,cmd, cmdLen);
   memcpy(buf + cmdLen ,append, appendLen + 1);
-
-  unsigned int size = cmdLen + appendLen + 1;
+  printf("\\r %x \\n %x \\0 %x \n", '\r' , '\n', '\0');
+  unsigned int size = cmdLen + appendLen;
   buf[size] = '\r';
   buf[size + 1] = '\n';
-  buf[size + 2] = '\0';
 
-  return cmdLen + appendLen + 3;
+  printData(buf,size + 2);
+  return size + 2;
 }
 
 void ftp_login(int fd, char* usr, char* pw){
@@ -332,6 +338,7 @@ void ftp_login(int fd, char* usr, char* pw){
     ftp_error("Error Receving USER confirmation!");
 
   size = ftp_cmd(buff, "PASS ", pw);
+  printf("%s\n",buff);
   if(ftp_send_cmd(fd, buff, size) < 0)
     ftp_error("Error Sending PASS Command!");
 
@@ -415,7 +422,7 @@ void ftp_getFile(int fd, char * file){
       exit(-1);
     }
     int dataWritten = 0;
-    printf("Data: %d - %d\n", dataReceived, vezes++);
+    //printf("Data: %d - %d\n", dataReceived, vezes++);
 
     while( dataWritten < (dataReceived) ){
       dataWritten += write(fileFD, buff + dataWritten, dataReceived - dataWritten);
@@ -479,7 +486,7 @@ int main(int argc, char** argv){
   char buff2[2000];
   recv(sockfd,buff2,2000, 0);
   printf("Buff2 Info: %s\n", buff2);
-
+  printf("Connection Info %s", connectionInfo.pw);
   ftp_login(sockfd, connectionInfo.usr, connectionInfo.pw);
   ftp_changePath(sockfd, connectionInfo.path);
   ftp_getFile(sockfd, connectionInfo.file);
